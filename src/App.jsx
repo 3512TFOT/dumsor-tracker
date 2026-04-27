@@ -2,6 +2,11 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import Onboarding from './components/Onboarding';
 import ReportModal from './components/ReportModal';
 import { SCHEDULE_DATES, getCurrentOutageGroups, getNextSlot } from './data';
+import { db } from './firebase';
+import {
+  collection, addDoc, updateDoc, doc,
+  onSnapshot, orderBy, query, limit, serverTimestamp
+} from 'firebase/firestore';
 import {
   Zap, Power, PowerOff, Bell, BellOff, Calendar, Search,
   Home, CalendarDays, MessageSquare,
@@ -10,6 +15,15 @@ import {
 } from 'lucide-react';
 
 function initials(n) { return n.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2); }
+
+function timeAgo(ts) {
+  if (!ts) return 'Just now';
+  const sec = Math.floor((Date.now() - ts.toMillis()) / 1000);
+  if (sec < 60)  return `${sec}s ago`;
+  if (sec < 3600) return `${Math.floor(sec/60)}m ago`;
+  if (sec < 86400) return `${Math.floor(sec/3600)}h ago`;
+  return `${Math.floor(sec/86400)}d ago`;
+}
 
 function exportICS(group, area, slots) {
   let ics = 'BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//DumsorTracker//EN\n';
@@ -53,12 +67,8 @@ export default function App() {
   const [alertRestore, setAlertRestore]   = useState(false);
   const [showBanner, setShowBanner]       = useState(true);
   const [showModal, setShowModal]         = useState(false);
-  const [reports, setReports]             = useState([
-    { user:'Kwesi A.',  text:'Power just went off in East Legon — 10 mins early!', time:'2m ago',  type:'off', upvotes:14, downvotes:0 },
-    { user:'Amma O.',   text:'Osu still on. Fingers crossed 🤞',                   time:'18m ago', type:'on',  upvotes:7,  downvotes:1 },
-    { user:'Nana B.',   text:'Sakumono came back on at 18:05 — right on time!',    time:'35m ago', type:'on',  upvotes:9,  downvotes:0 },
-    { user:'Esi M.',    text:'Adabraka still off as of 7pm. Anyone else?',         time:'1h ago',  type:'off', upvotes:4,  downvotes:0 },
-  ]);
+  const [reports, setReports]             = useState([]);
+  const [reportsLoading, setReportsLoading] = useState(true);
 
   useEffect(()=>{
     if (!selectedDay) {
@@ -66,6 +76,20 @@ export default function App() {
       setSelectedDay((SCHEDULE_DATES.find(d=>d.date===t)||SCHEDULE_DATES[0]).date);
     }
   },[selectedDay]);
+
+  // ── Live Firestore reports ──────────────────────────────
+  useEffect(()=>{
+    const q = query(
+      collection(db,'reports'),
+      orderBy('timestamp','desc'),
+      limit(50)
+    );
+    const unsub = onSnapshot(q, snap=>{
+      setReports(snap.docs.map(d=>({ id:d.id, ...d.data() })));
+      setReportsLoading(false);
+    }, ()=>setReportsLoading(false));
+    return ()=>unsub();
+  },[]);
 
   const status = useMemo(()=>{
     if (!userInfo) return {isPowerOn:true,next:''};
@@ -96,9 +120,25 @@ export default function App() {
     });
   },[mySlots,userInfo]);
 
-  const handleVote = (i,dir)=>setReports(prev=>prev.map((r,idx)=>idx!==i?r:{...r,[dir==='up'?'upvotes':'downvotes']:r[dir==='up'?'upvotes':'downvotes']+1}));
+  const handleVote = async (i, dir) => {
+    const r = reports[i];
+    if (!r?.id) return;
+    const field = dir==='up' ? 'upvotes' : 'downvotes';
+    await updateDoc(doc(db,'reports',r.id), { [field]: (r[field]||0)+1 });
+  };
 
-  const handleReport = ({type,text})=>setReports(prev=>[{user:'You',text,time:'Just now',type,upvotes:0,downvotes:0},...prev]);
+  const handleReport = async ({type,text})=>{
+    await addDoc(collection(db,'reports'),{
+      user: 'Anonymous',
+      text,
+      type,
+      area: userInfo?.area || 'Unknown',
+      region: userInfo?.region?.name || '',
+      upvotes: 0,
+      downvotes: 0,
+      timestamp: serverTimestamp(),
+    });
+  };
 
   const handleShare = ()=>{
     if (navigator.share) navigator.share({title:'DumsorTracker Ghana',text:'Check your power outage schedule!',url:window.location.href});
@@ -207,13 +247,21 @@ export default function App() {
             <h3>Nearby Reports</h3>
             <a href="#" onClick={e=>{e.preventDefault();setTab('community');}}>See all <ChevronRight size={14} style={{verticalAlign:'middle'}}/></a>
           </div>
-          <div className="alert-card fu fu5" style={{padding:'16px 20px'}}>
-            {reports.slice(0,2).map((r,i)=>(
-              <div key={i} className="feed-item">
-                <div className="feed-av">{initials(r.user)}</div>
+          <div className="alert-card fu fu5" style={{padding:'4px 20px'}}>
+            {reportsLoading && (
+              <p style={{color:'var(--text3)',fontSize:'0.82rem',padding:'16px 0'}}>Loading reports…</p>
+            )}
+            {!reportsLoading && reports.length===0 && (
+              <p style={{color:'var(--text3)',fontSize:'0.82rem',padding:'16px 0'}}>No reports yet. Be the first!</p>
+            )}
+            {reports.slice(0,3).map(r=>(
+              <div key={r.id||r.text} className="feed-item">
+                <div className="feed-av">{initials(r.user||'?')}</div>
                 <div>
-                  <span className="feed-user">{r.user}</span><span className="feed-when">{r.time}</span>
+                  <span className="feed-user">{r.user}</span>
+                  <span className="feed-when">{timeAgo(r.timestamp)}</span>
                   <span className={`feed-type ${r.type}`}>{r.type==='off'?'🔴 OFF':'🟡 ON'}</span>
+                  {r.area && <span style={{fontSize:'0.68rem',color:'var(--text3)',marginLeft:5}}>· {r.area}</span>}
                   <p className="feed-text">{r.text}</p>
                 </div>
               </div>
@@ -321,17 +369,26 @@ export default function App() {
             <button className="report-btn danger"  onClick={()=>setShowModal(true)}><AlertTriangle size={15} color="var(--danger)"/> Report Outage</button>
           </div>
           <div className="alert-card fu fu2" style={{marginTop:16,padding:'4px 20px'}}>
-            {reports.map((r,i)=>(
-              <div key={i} className="feed-item">
-                <div className="feed-av">{initials(r.user)}</div>
+            {reportsLoading && (
+              <p style={{color:'var(--text3)',fontSize:'0.82rem',padding:'16px 0'}}>Loading live reports…</p>
+            )}
+            {!reportsLoading && reports.length===0 && (
+              <p style={{color:'var(--text3)',fontSize:'0.82rem',padding:'16px 0'}}>No reports yet — be the first to share!</p>
+            )}
+            {reports.map(r=>(
+              <div key={r.id||r.text} className="feed-item">
+                <div className="feed-av">{initials(r.user||'?')}</div>
                 <div style={{flex:1}}>
-                  <div><span className="feed-user">{r.user}</span><span className="feed-when">{r.time}</span>
+                  <div>
+                    <span className="feed-user">{r.user}</span>
+                    <span className="feed-when">{timeAgo(r.timestamp)}</span>
                     <span className={`feed-type ${r.type}`}>{r.type==='off'?'🔴 OFF':'🟡 ON'}</span>
+                    {r.area && <span style={{fontSize:'0.68rem',color:'var(--text3)',marginLeft:5}}>· {r.area}</span>}
                   </div>
                   <p className="feed-text">{r.text}</p>
                   <div className="vote-row">
-                    <button className="vote-btn" onClick={()=>handleVote(i,'up')}><ThumbsUp size={12}/>{r.upvotes}</button>
-                    <button className="vote-btn" onClick={()=>handleVote(i,'down')}><ThumbsDown size={12}/>{r.downvotes}</button>
+                    <button className="vote-btn" onClick={()=>handleVote(reports.indexOf(r),'up')}><ThumbsUp size={12}/>{r.upvotes||0}</button>
+                    <button className="vote-btn" onClick={()=>handleVote(reports.indexOf(r),'down')}><ThumbsDown size={12}/>{r.downvotes||0}</button>
                   </div>
                 </div>
               </div>
