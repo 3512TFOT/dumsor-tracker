@@ -47,8 +47,8 @@ export default function Onboarding({ onSelect }) {
         Know Before<br />The Lights Go Out
       </h1>
       <p className="onboard-sub">
-        Enter your area to see your personalised ECG load management schedule,
-        get alerts before outages, and report live power status.
+        Search your area to see your personal power outage schedule,
+        get alerts before outages start, and report live status to your community.
       </p>
 
       {/* Search box */}
@@ -110,7 +110,7 @@ export default function Onboarding({ onSelect }) {
       </div>
 
       <p style={{ marginTop: 40, fontSize: '0.72rem', color: 'var(--muted)' }}>
-        © 2026 DumsorTracker · Source: ECG Official Schedule
+        © 2026 DumsorTracker Ghana · Built for the community
       </p>
     </div>
   );
