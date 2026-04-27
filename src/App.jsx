@@ -443,6 +443,11 @@ export default function App() {
             <Onboarding onSelect={info=>{setUserInfo(info);setTab('home');}}/>
           </div>
         )}
+        {/* Credit */}
+        <div className="app-credit">
+          Built by <a href="https://github.com/3512TFOT" target="_blank" rel="noreferrer">Kwabena Essuman</a>
+          &nbsp;·&nbsp; DumsorTracker Ghana &nbsp;·&nbsp; 2026
+        </div>
       </div>
 
       {/* Tab Bar */}
