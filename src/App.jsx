@@ -45,27 +45,43 @@ function requestNotif(cb) {
   Notification.requestPermission().then(p=>cb(p==='granted'));
 }
 
-function scheduleAlert(area, date, start) {
-  if (Notification.permission!=='granted') return;
-  const alertTime = new Date(`${date}T${start}:00`).getTime() - 3600000;
-  const delay = alertTime - Date.now();
-  if (delay>0 && delay<86400000) {
-    setTimeout(()=>new Notification('⚡ DumsorTracker',{
-      body:`Power outage in ${area} starts in 1 hour (${start})`,
-      icon:'/favicon.ico'
-    }), delay);
+// Custom hook to persist settings
+function useLocalStorage(key, initialValue) {
+  const [storedValue, setStoredValue] = useState(() => {
+    try {
+      const item = window.localStorage.getItem(key);
+      return item ? JSON.parse(item) : initialValue;
+    } catch (error) {
+      return initialValue;
+    }
+  });
+  const setValue = (value) => {
+    try {
+      const valueToStore = value instanceof Function ? value(storedValue) : value;
+      setStoredValue(valueToStore);
+      window.localStorage.setItem(key, JSON.stringify(valueToStore));
+    } catch (error) {}
+  };
+  return [storedValue, setValue];
+}
+
+// Alert trigger helper (we use this in the unified ticker instead of fire-and-forget timeouts)
+function triggerAlert(title, body) {
+  if (Notification.permission === 'granted') {
+    new Notification(title, { body, icon: '/favicon.svg' });
   }
 }
 
 export default function App() {
-  const [userInfo, setUserInfo]           = useState(null);
+  const [userInfo, setUserInfo]           = useLocalStorage('dumsor_user', null);
   const [tab, setTab]                     = useState('home');
   const [selectedDay, setSelectedDay]     = useState(null);
-  const [notifEnabled, setNotifEnabled]   = useState(false);
-  const [alertOneHr, setAlertOneHr]       = useState(true);
-  const [alertMorning, setAlertMorning]   = useState(true);
-  const [alertRestore, setAlertRestore]   = useState(false);
-  const [showBanner, setShowBanner]       = useState(true);
+  const [notifEnabled, setNotifEnabled]   = useLocalStorage('dumsor_notif', false);
+  const [alertOneHr, setAlertOneHr]       = useLocalStorage('dumsor_alert_1hr', true);
+  const [alertMorning, setAlertMorning]   = useLocalStorage('dumsor_alert_morn', true);
+  const [alertRestore, setAlertRestore]   = useLocalStorage('dumsor_alert_rest', false);
+  const [showBanner, setShowBanner]       = useLocalStorage('dumsor_banner', true);
+  const [firedAlerts, setFiredAlerts]     = useLocalStorage('dumsor_fired', {});
   const [showModal, setShowModal]         = useState(false);
   const [reports, setReports]             = useState([]);
   const [reportsLoading, setReportsLoading] = useState(true);
@@ -92,16 +108,66 @@ export default function App() {
   },[]);
 
   const status = useMemo(()=>{
-    if (!userInfo) return {isPowerOn:true,next:''};
+    if (!userInfo) return {isPowerOn:true,next:'',currentSlot:null};
     const isOff = getCurrentOutageGroups().includes(userInfo.group);
     const next  = getNextSlot(userInfo.group);
-    return { isPowerOn:!isOff, next: next?`${next.day}, ${next.start} – ${next.end}`:'No more outages this week' };
+    return { 
+      isPowerOn:!isOff, 
+      next: next?`${next.day}, ${next.start} – ${next.end}`:'No more outages this week',
+      currentSlot: next
+    };
   },[userInfo]);
 
   const mySlots = useMemo(()=>{
     if (!userInfo) return [];
     return SCHEDULE_DATES.flatMap(d=>d.slots.filter(s=>s.group===userInfo.group).map(s=>({...s,date:d.date,day:d.day})));
   },[userInfo]);
+
+  // ── Unified Notification Ticker ──────────────────────────────
+  useEffect(() => {
+    if (!notifEnabled || !userInfo || !mySlots.length) return;
+    const interval = setInterval(() => {
+      const now = new Date();
+      const h = now.getHours();
+      const m = now.getMinutes();
+      const todayStr = now.toISOString().split('T')[0];
+
+      let newFired = { ...firedAlerts };
+      let changed = false;
+
+      mySlots.forEach(s => {
+        const outTime = new Date(`${s.date}T${s.start}:00`);
+        const endTime = new Date(`${s.date}T${s.end==='00:00'?'23:59':s.end}:00`);
+        const timeDiff = outTime.getTime() - now.getTime();
+        const endDiff = endTime.getTime() - now.getTime();
+
+        // 1-Hour Warning
+        if (alertOneHr && timeDiff > 0 && timeDiff <= 3600000 && !newFired[`1hr-${s.date}`]) {
+          triggerAlert('⚡ Upcoming Outage', `Power goes off in ${userInfo.area} in 1 hour (${s.start}).`);
+          newFired[`1hr-${s.date}`] = true;
+          changed = true;
+        }
+
+        // Power Restored Alert
+        if (alertRestore && endDiff <= 0 && endDiff > -300000 && !newFired[`restored-${s.date}`]) {
+          triggerAlert('✅ Power Restored?', `Outage block ended for ${userInfo.area}. Did power come back?`);
+          newFired[`restored-${s.date}`] = true;
+          changed = true;
+        }
+
+        // Morning Summary (7am on outage days)
+        if (alertMorning && s.date === todayStr && h === 7 && !newFired[`morn-${todayStr}`]) {
+          triggerAlert('📅 Today\'s Schedule', `Your area has an outage today from ${s.start} to ${s.end}.`);
+          newFired[`morn-${todayStr}`] = true;
+          changed = true;
+        }
+      });
+
+      if (changed) setFiredAlerts(newFired);
+    }, 15000); // check every 15s
+
+    return () => clearInterval(interval);
+  }, [notifEnabled, userInfo, mySlots, alertOneHr, alertMorning, alertRestore, firedAlerts]);
 
   const dayDetail = useMemo(()=>{
     if (!selectedDay||!userInfo) return null;
@@ -114,11 +180,10 @@ export default function App() {
     requestNotif(ok=>{
       setNotifEnabled(ok); setShowBanner(false);
       if (ok && userInfo) {
-        mySlots.forEach(s=>scheduleAlert(userInfo.area,s.date,s.start));
-        new Notification('✅ DumsorTracker',{body:`Alerts on for ${userInfo.area}. We'll warn you 1hr before outages.`});
+        triggerAlert('✅ DumsorTracker', `Alerts active for ${userInfo.area}. We'll keep you updated.`);
       }
     });
-  },[mySlots,userInfo]);
+  },[userInfo]);
 
   const handleVote = async (i, dir) => {
     const r = reports[i];
