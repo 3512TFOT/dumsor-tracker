@@ -137,6 +137,30 @@ export default function App() {
     return reports.filter(r=>r.area === userInfo.area);
   },[reports, userInfo]);
 
+  const conflictWarning = useMemo(() => {
+    if (!localReports || localReports.length === 0) return null;
+    
+    const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000;
+    const recentReports = localReports.filter(r => {
+      const ts = r.timestamp ? (r.timestamp.toMillis ? r.timestamp.toMillis() : Date.now()) : Date.now();
+      return ts > twoHoursAgo;
+    });
+
+    if (recentReports.length < 2) return null;
+
+    let reportedOn = 0, reportedOff = 0;
+    recentReports.forEach(r => r.type === 'on' ? reportedOn++ : reportedOff++);
+
+    const total = reportedOn + reportedOff;
+    if (status.isPowerOn && (reportedOff / total > 0.6)) {
+      return "ECG Schedule says power should be ON, but recent community reports indicate it is OFF.";
+    }
+    if (!status.isPowerOn && (reportedOn / total > 0.6)) {
+      return "ECG Schedule says power should be OFF, but recent community reports indicate it is ON.";
+    }
+    return null;
+  }, [localReports, status]);
+
   const displayedReports = feedFilter==='local' ? localReports : reports;
 
   // ── Unified Notification Ticker ──────────────────────────────
@@ -316,6 +340,12 @@ export default function App() {
                 <p className="power-next">{status.isPowerOn?'Next outage: ':'Expected restoration: '}<strong>{status.next}</strong></p>
               </div>
             </div>
+            {conflictWarning && (
+              <div style={{background:'rgba(255,180,0,0.1)', border:'1px solid rgba(255,180,0,0.3)', padding:'10px 14px', borderRadius:'10px', marginBottom:'14px', display:'flex', gap:'10px', alignItems:'flex-start'}}>
+                <AlertTriangle size={16} color="#ffb400" style={{flexShrink:0, marginTop:2}}/>
+                <p style={{fontSize:'0.75rem', color:'#ffb400', lineHeight:1.4, margin:0}}>{conflictWarning}</p>
+              </div>
+            )}
             <p style={{fontSize:'0.76rem',color:'var(--muted)',marginBottom:8}}>Is this correct for your area?</p>
             <div className="confirm-row">
               <button className="confirm-btn yes" onClick={()=>setShowModal(true)}>
