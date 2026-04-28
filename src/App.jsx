@@ -83,6 +83,7 @@ export default function App() {
   const [showBanner, setShowBanner]       = useLocalStorage('dumsor_banner', true);
   const [firedAlerts, setFiredAlerts]     = useLocalStorage('dumsor_fired', {});
   const [showModal, setShowModal]         = useState(false);
+  const [feedFilter, setFeedFilter]       = useState('local');
   const [reports, setReports]             = useState([]);
   const [reportsLoading, setReportsLoading] = useState(true);
 
@@ -122,6 +123,13 @@ export default function App() {
     if (!userInfo) return [];
     return SCHEDULE_DATES.flatMap(d=>d.slots.filter(s=>s.group===userInfo.group).map(s=>({...s,date:d.date,day:d.day})));
   },[userInfo]);
+
+  const localReports = useMemo(()=>{
+    if (!userInfo) return reports;
+    return reports.filter(r=>r.area === userInfo.area);
+  },[reports, userInfo]);
+
+  const displayedReports = feedFilter==='local' ? localReports : reports;
 
   // ── Unified Notification Ticker ──────────────────────────────
   useEffect(() => {
@@ -316,10 +324,10 @@ export default function App() {
             {reportsLoading && (
               <p style={{color:'var(--text3)',fontSize:'0.82rem',padding:'16px 0'}}>Loading reports…</p>
             )}
-            {!reportsLoading && reports.length===0 && (
-              <p style={{color:'var(--text3)',fontSize:'0.82rem',padding:'16px 0'}}>No reports yet. Be the first!</p>
+            {!reportsLoading && localReports.length===0 && (
+              <p style={{color:'var(--text3)',fontSize:'0.82rem',padding:'16px 0'}}>No reports from {userInfo.area} yet. Be the first!</p>
             )}
-            {reports.slice(0,3).map(r=>(
+            {localReports.slice(0,3).map(r=>(
               <div key={r.id||r.text} className="feed-item">
                 <div className="feed-av">{initials(r.user||'?')}</div>
                 <div>
@@ -427,7 +435,12 @@ export default function App() {
         {tab==='community' && <>
           <div className="section-hd fu" style={{marginTop:8,marginBottom:16}}>
             <h3>Community Reports</h3>
-            <span style={{fontSize:'0.75rem',color:'var(--muted)'}}>{reports.length} reports</span>
+            <span style={{fontSize:'0.75rem',color:'var(--muted)'}}>{displayedReports.length} reports</span>
+          </div>
+
+          <div className="confirm-row fu" style={{marginBottom:16}}>
+            <button className={`confirm-btn ${feedFilter==='local'?'yes':''}`} style={{backgroundColor:feedFilter!=='local'?'var(--surface)':undefined}} onClick={()=>setFeedFilter('local')}>My Area</button>
+            <button className={`confirm-btn ${feedFilter==='all'?'yes':''}`} style={{backgroundColor:feedFilter!=='all'?'var(--surface)':undefined}} onClick={()=>setFeedFilter('all')}>All Ghana</button>
           </div>
           <div className="report-row fu fu1">
             <button className="report-btn success" onClick={()=>setShowModal(true)}><Zap size={15} color="var(--primary)"/> Power ON</button>
@@ -437,10 +450,10 @@ export default function App() {
             {reportsLoading && (
               <p style={{color:'var(--text3)',fontSize:'0.82rem',padding:'16px 0'}}>Loading live reports…</p>
             )}
-            {!reportsLoading && reports.length===0 && (
-              <p style={{color:'var(--text3)',fontSize:'0.82rem',padding:'16px 0'}}>No reports yet — be the first to share!</p>
+            {!reportsLoading && displayedReports.length===0 && (
+              <p style={{color:'var(--text3)',fontSize:'0.82rem',padding:'16px 0'}}>No reports {feedFilter==='local'?`for ${userInfo.area}`:''} yet — be the first to share!</p>
             )}
-            {reports.map(r=>(
+            {displayedReports.map(r=>(
               <div key={r.id||r.text} className="feed-item">
                 <div className="feed-av">{initials(r.user||'?')}</div>
                 <div style={{flex:1}}>
