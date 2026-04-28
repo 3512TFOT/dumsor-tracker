@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -22,8 +22,11 @@ export default function LiveMap({ reports }) {
   // Helper component to auto-zoom the map
   const MapBounds = ({ data }) => {
     const map = useMap();
+    const hasFitted = useRef(false);
+
     useEffect(() => {
-      if (!data || data.length === 0) return;
+      if (!data || data.length === 0 || hasFitted.current) return;
+      
       let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
       data.forEach(d => {
         if (d.jitterLat < minLat) minLat = d.jitterLat;
@@ -31,8 +34,10 @@ export default function LiveMap({ reports }) {
         if (d.jitterLng < minLng) minLng = d.jitterLng;
         if (d.jitterLng > maxLng) maxLng = d.jitterLng;
       });
+
       if (minLat !== 90) {
-        map.fitBounds([[minLat, minLng], [maxLat, maxLng]], { padding: [40, 40], maxZoom: 10 });
+        map.fitBounds([[minLat, minLng], [maxLat, maxLng]], { padding: [40, 40], maxZoom: 13 });
+        hasFitted.current = true;
       }
     }, [data, map]);
     return null;
