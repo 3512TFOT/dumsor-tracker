@@ -347,10 +347,16 @@ button{font-family:'Inter',sans-serif;cursor:pointer;}
 .tab-item.active{color:var(--primary);}
 @media(min-width:520px){
   .tab-bar{
+    width:100%;
     max-width:480px;
     left:50%;
     right:auto;
     transform:translateX(-50%);
+  }
+  .tab-item:hover{
+    color:var(--text);
+    background:rgba(255,255,255,0.05);
+    border-radius:8px;
   }
   .app-shell{
     border-left:1px solid var(--border);
