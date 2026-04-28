@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback, Suspense, lazy } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, Suspense, lazy, useTransition } from 'react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 
 const Onboarding = lazy(() => import('./components/Onboarding'));
@@ -90,11 +90,15 @@ export default function App() {
   const [feedFilter, setFeedFilter]       = useState('local');
   const [reports, setReports]             = useState([]);
   const [reportsLoading, setReportsLoading] = useState(true);
+  
+  const [isPending, startTransition]      = useTransition();
 
   useEffect(()=>{
     if (!selectedDay) {
       const t = new Date().toISOString().split('T')[0];
-      setSelectedDay((SCHEDULE_DATES.find(d=>d.date===t)||SCHEDULE_DATES[0]).date);
+      startTransition(() => {
+        setSelectedDay((SCHEDULE_DATES.find(d=>d.date===t)||SCHEDULE_DATES[0]).date);
+      });
     }
   },[selectedDay]);
 
@@ -267,7 +271,7 @@ export default function App() {
             <h1>DumsorTracker</h1>
           </div>
           <div className="nav-actions">
-            <button className="icon-btn" onClick={()=>setTab('search')}><Search size={17}/></button>
+            <button className="icon-btn" onClick={()=>startTransition(()=>setTab('search'))}><Search size={17}/></button>
             <button className={`icon-btn ${notifEnabled?'active':''}`} onClick={handleEnableNotif}>
               {notifEnabled?<Bell size={17}/>:<BellOff size={17}/>}
             </button>
@@ -332,7 +336,7 @@ export default function App() {
 
           <div className="section-hd fu fu3">
             <h3>This Week</h3>
-            <a href="#" onClick={e=>{e.preventDefault();setTab('schedule');}}>View schedule <ChevronRight size={14} style={{verticalAlign:'middle'}}/></a>
+            <a href="#" onClick={e=>{e.preventDefault();startTransition(()=>setTab('schedule'));}}>View schedule <ChevronRight size={14} style={{verticalAlign:'middle'}}/></a>
           </div>
 
           <div className="week-strip fu fu4">
@@ -391,7 +395,7 @@ export default function App() {
               return (
                 <div key={d.date}
                   className={`week-day ${hasOutage?'outage':''} ${d.date===today?'today':''} ${d.date===selectedDay?'selected':''}`}
-                  onClick={()=>setSelectedDay(d.date)}>
+                  onClick={()=>startTransition(()=>setSelectedDay(d.date))}>
                   <span className="week-day-abbr">{d.day.slice(0,3).toUpperCase()}</span>
                   <span className="week-day-num">{new Date(d.date).getDate()}</span>
                   <span className="week-day-dot" style={{background:hasOutage?'var(--danger)':'rgba(255,255,255,0.15)'}}/>
@@ -572,7 +576,7 @@ export default function App() {
           {id:'community',icon:MessageSquare, label:'Community'},
           {id:'alerts',   icon:Bell,          label:'Alerts'},
         ].map(({id,icon:Icon,label})=>(
-          <button key={id} className={`tab-item ${tab===id?'active':''}`} onClick={()=>setTab(id)}>
+          <button key={id} className={`tab-item ${tab===id?'active':''}`} onClick={()=>startTransition(()=>setTab(id))}>
             <Icon size={20}/>{label}
           </button>
         ))}
