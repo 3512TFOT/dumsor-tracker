@@ -153,11 +153,11 @@ export default function App() {
     recentReports.forEach(r => r.type === 'on' ? reportedOn++ : reportedOff++);
 
     const total = reportedOn + reportedOff;
-    if (status.isPowerOn && (reportedOff / total > 0.6)) {
-      return "ECG Schedule says power should be ON, but recent community reports indicate it is OFF.";
+    if (status.isPowerOn && (reportedOff / total >= 0.2)) {
+      return "ECG Schedule says power should be ON, but several community reports indicate it is OFF.";
     }
-    if (!status.isPowerOn && (reportedOn / total > 0.6)) {
-      return "ECG Schedule says power should be OFF, but recent community reports indicate it is ON.";
+    if (!status.isPowerOn && (reportedOn / total >= 0.2)) {
+      return "ECG Schedule says power should be OFF, but several community reports indicate it is ON.";
     }
     return null;
   }, [localReports, status]);
