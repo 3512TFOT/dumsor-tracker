@@ -438,9 +438,9 @@ export default function App() {
             <span style={{fontSize:'0.75rem',color:'var(--muted)'}}>{displayedReports.length} reports</span>
           </div>
 
-          <div className="confirm-row fu" style={{marginBottom:16}}>
-            <button className={`confirm-btn ${feedFilter==='local'?'yes':''}`} style={{backgroundColor:feedFilter!=='local'?'var(--surface)':undefined}} onClick={()=>setFeedFilter('local')}>My Area</button>
-            <button className={`confirm-btn ${feedFilter==='all'?'yes':''}`} style={{backgroundColor:feedFilter!=='all'?'var(--surface)':undefined}} onClick={()=>setFeedFilter('all')}>All Ghana</button>
+          <div className="segmented-control fu">
+            <button className={`segment-btn ${feedFilter==='local'?'active':''}`} onClick={()=>setFeedFilter('local')}>My Area</button>
+            <button className={`segment-btn ${feedFilter==='all'?'active':''}`} onClick={()=>setFeedFilter('all')}>All Ghana</button>
           </div>
           <div className="report-row fu fu1">
             <button className="report-btn success" onClick={()=>setShowModal(true)}><Zap size={15} color="var(--primary)"/> Power ON</button>
