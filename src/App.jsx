@@ -1,7 +1,8 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, Suspense, lazy } from 'react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
-import Onboarding from './components/Onboarding';
-import ReportModal from './components/ReportModal';
+
+const Onboarding = lazy(() => import('./components/Onboarding'));
+const ReportModal = lazy(() => import('./components/ReportModal'));
 import { SCHEDULE_DATES, getCurrentOutageGroups, getNextSlot } from './data';
 import { db } from './firebase';
 import {
@@ -237,7 +238,13 @@ export default function App() {
     else { navigator.clipboard.writeText(window.location.href); alert('Link copied!'); }
   };
 
-  if (!userInfo) return <Onboarding onSelect={info=>{setUserInfo(info);setTab('home');}}/>;
+  if (!userInfo) {
+    return (
+      <Suspense fallback={<div style={{padding:40,textAlign:'center',color:'var(--muted)'}}>Loading DumsorTracker...</div>}>
+        <Onboarding onSelect={info=>{setUserInfo(info);setTab('home');}}/>
+      </Suspense>
+    );
+  }
 
   const today = new Date().toISOString().split('T')[0];
 
@@ -246,7 +253,11 @@ export default function App() {
 
   return (
     <>
-      {showModal && <ReportModal area={userInfo.area} onSubmit={handleReport} onClose={()=>setShowModal(false)}/>}
+      {showModal && (
+        <Suspense fallback={<div style={{display:'none'}}/>}>
+          <ReportModal area={userInfo.area} onSubmit={handleReport} onClose={()=>setShowModal(false)}/>
+        </Suspense>
+      )}
 
       <div className="app-shell">
         {/* Top Nav */}
@@ -541,7 +552,9 @@ export default function App() {
         {/* ── SEARCH ── */}
         {tab==='search' && (
           <div style={{paddingTop:8}}>
-            <Onboarding onSelect={info=>{setUserInfo(info);setTab('home');}}/>
+            <Suspense fallback={<div style={{padding:40,textAlign:'center',color:'var(--muted)'}}>Loading search...</div>}>
+              <Onboarding onSelect={info=>{setUserInfo(info);setTab('home');}}/>
+            </Suspense>
           </div>
         )}
         {/* Credit */}

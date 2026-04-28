@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Zap, MapPin, Search } from 'lucide-react';
-import { REGIONS_DATA, findArea } from '../data';
+import { REGIONS_DATA, findArea } from '../regions';
 
 // Flatten all areas for searching
 const ALL_AREAS = REGIONS_DATA.flatMap(region =>
