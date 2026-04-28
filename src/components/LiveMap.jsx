@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet';
+import React, { useMemo, useEffect } from 'react';
+import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 
 export default function LiveMap({ reports }) {
@@ -16,11 +16,31 @@ export default function LiveMap({ reports }) {
       });
   }, [reports]);
 
-  // Center on Ghana roughly
-  const center = [6.5, -1.5]; // Adjusted to focus slightly closer to southern Ghana where most reports are
+  // Center on Ghana roughly as a fallback
+  const center = [6.5, -1.5];
+
+  // Helper component to auto-zoom the map
+  const MapBounds = ({ data }) => {
+    const map = useMap();
+    useEffect(() => {
+      if (!data || data.length === 0) return;
+      let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+      data.forEach(d => {
+        if (d.jitterLat < minLat) minLat = d.jitterLat;
+        if (d.jitterLat > maxLat) maxLat = d.jitterLat;
+        if (d.jitterLng < minLng) minLng = d.jitterLng;
+        if (d.jitterLng > maxLng) maxLng = d.jitterLng;
+      });
+      if (minLat !== 90) {
+        map.fitBounds([[minLat, minLng], [maxLat, maxLng]], { padding: [40, 40], maxZoom: 10 });
+      }
+    }, [data, map]);
+    return null;
+  };
 
   return (
     <MapContainer center={center} zoom={6.5} style={{ height: '100%', width: '100%', background: '#141418' }}>
+      <MapBounds data={mapData} />
       {/* Dark themed map tiles to match the DumsorTracker aesthetic */}
       <TileLayer
         url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
