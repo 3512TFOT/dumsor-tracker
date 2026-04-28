@@ -24,11 +24,32 @@ export default function Onboarding({ onSelect }) {
   const handleLocate = () => {
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
-      () => {
-        // Ghana centroid → default to Accra Group A
-        const region = REGIONS_DATA[0];
-        onSelect({ area: 'Detected Location', group: 'A', region });
-        setLocating(false);
+      async (pos) => {
+        try {
+          const { latitude, longitude } = pos.coords;
+          // Reverse geocode via OpenStreetMap (Free, no API key needed)
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+          const data = await res.json();
+          
+          // Get the most specific neighborhood/suburb available
+          const addr = data.address || {};
+          const detectedName = addr.suburb || addr.neighbourhood || addr.village || addr.town || addr.city || 'Detected Location';
+
+          // Try to cross-reference this detected name with our Dumsor database
+          const dbMatch = findArea(detectedName);
+
+          if (dbMatch) {
+            onSelect({ area: dbMatch.areaName, group: dbMatch.group, region: dbMatch.region });
+          } else {
+            // If the specific neighborhood isn't in our DB, just use the name and default to Group A
+            onSelect({ area: detectedName, group: 'A', region: REGIONS_DATA[0] });
+          }
+        } catch (error) {
+          console.error("Geocoding failed:", error);
+          onSelect({ area: 'Detected Location', group: 'A', region: REGIONS_DATA[0] });
+        } finally {
+          setLocating(false);
+        }
       },
       () => {
         alert('Could not detect location. Please search your area below.');
