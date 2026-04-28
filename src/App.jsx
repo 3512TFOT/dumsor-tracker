@@ -108,7 +108,7 @@ export default function App() {
     const q = query(
       collection(db,'reports'),
       orderBy('timestamp','desc'),
-      limit(50)
+      limit(500)
     );
     const unsub = onSnapshot(q, snap=>{
       setReports(snap.docs.map(d=>({ id:d.id, ...d.data() })));
