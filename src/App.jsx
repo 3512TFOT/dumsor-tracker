@@ -82,6 +82,8 @@ export default function App() {
   const [alertRestore, setAlertRestore]   = useLocalStorage('dumsor_alert_rest', false);
   const [showBanner, setShowBanner]       = useLocalStorage('dumsor_banner', true);
   const [firedAlerts, setFiredAlerts]     = useLocalStorage('dumsor_fired', {});
+  const [lastReport, setLastReport]       = useLocalStorage('dumsor_last_rep', 0);
+  const [votedReports, setVotedReports]   = useLocalStorage('dumsor_votes', {});
   const [showModal, setShowModal]         = useState(false);
   const [feedFilter, setFeedFilter]       = useState('local');
   const [reports, setReports]             = useState([]);
@@ -196,21 +198,37 @@ export default function App() {
   const handleVote = async (i, dir) => {
     const r = reports[i];
     if (!r?.id) return;
+    if (votedReports[r.id]) {
+      alert('You have already voted on this report.');
+      return;
+    }
     const field = dir==='up' ? 'upvotes' : 'downvotes';
     await updateDoc(doc(db,'reports',r.id), { [field]: (r[field]||0)+1 });
+    setVotedReports(prev => ({ ...prev, [r.id]: true }));
   };
 
   const handleReport = async ({type,text})=>{
+    const now = Date.now();
+    if (now - lastReport < 300000) { // 5 minutes cooldown
+      alert('Please wait a few minutes before submitting another report.');
+      return;
+    }
+    
+    // Quick sanitization
+    const cleanText = text.replace(/<[^>]*>?/gm, '').substring(0, 200);
+
     await addDoc(collection(db,'reports'),{
       user: 'Anonymous',
-      text,
-      type,
+      text: cleanText,
+      type: type === 'off' ? 'off' : 'on',
       area: userInfo?.area || 'Unknown',
       region: userInfo?.region?.name || '',
       upvotes: 0,
       downvotes: 0,
       timestamp: serverTimestamp(),
     });
+
+    setLastReport(now);
   };
 
   const handleShare = ()=>{

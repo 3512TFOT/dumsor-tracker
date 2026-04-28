@@ -4,6 +4,7 @@ import { X, Zap, AlertTriangle, Send } from 'lucide-react';
 export default function ReportModal({ area, onSubmit, onClose }) {
   const [type, setType] = useState('off');
   const [text, setText] = useState('');
+  const [honeypot, setHoneypot] = useState(''); // Anti-bot trap
 
   const PRESETS = {
     off: [
@@ -21,7 +22,8 @@ export default function ReportModal({ area, onSubmit, onClose }) {
   };
 
   const handleSubmit = () => {
-    if (!text.trim()) return;
+    if (honeypot) return onClose(); // Silent fail for bots
+    if (!text.trim() || text.trim().length > 200) return; // Character limit
     onSubmit({ type, text: text.trim() });
     onClose();
   };
@@ -121,6 +123,7 @@ export default function ReportModal({ area, onSubmit, onClose }) {
           placeholder="Or add more details…"
           value={text}
           onChange={e => setText(e.target.value)}
+          maxLength={200}
           rows={3}
           style={{
             width: '100%', background: 'var(--card)',
@@ -131,6 +134,17 @@ export default function ReportModal({ area, onSubmit, onClose }) {
           }}
           onFocus={e => e.target.style.borderColor = 'rgba(250,204,21,0.4)'}
           onBlur={e => e.target.style.borderColor = 'var(--border)'}
+        />
+
+        {/* Honeypot for bots */}
+        <input 
+          type="text" 
+          name="user_email" 
+          tabIndex="-1" 
+          autoComplete="off"
+          style={{ display: 'none' }} 
+          value={honeypot} 
+          onChange={e => setHoneypot(e.target.value)} 
         />
 
         {/* Submit */}
