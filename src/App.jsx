@@ -162,6 +162,11 @@ export default function App() {
     return null;
   }, [localReports, status]);
 
+  const displayStatus = useMemo(() => {
+    if (conflictWarning) return !status.isPowerOn;
+    return status.isPowerOn;
+  }, [status.isPowerOn, conflictWarning]);
+
   const displayedReports = feedFilter==='local' ? localReports : reports;
 
   // ── Unified Notification Ticker ──────────────────────────────
@@ -329,18 +334,18 @@ export default function App() {
             </div>
           )}
 
-          <div className={`power-card ${status.isPowerOn?'on':'off'} fu fu2`}>
+          <div className={`power-card ${displayStatus?'on':'off'} fu fu2`}>
             <div className="power-card-glow"/>
             <div className="power-row">
               <div className="power-icon">
-                {status.isPowerOn?<Power size={22} color={iconColor}/>:<PowerOff size={22} color={iconColor}/>}
+                {displayStatus?<Power size={22} color={iconColor}/>:<PowerOff size={22} color={iconColor}/>}
               </div>
               <div>
                 <div className="power-status-label">
                   <span style={{width:6,height:6,borderRadius:'50%',background:iconColor,display:'inline-block',animation:'ripple 2s infinite'}}/>
-                  {status.isPowerOn?'Power is Stable':'Outage Active'}
+                  {displayStatus?'Power is Stable':'Outage Active'}
                 </div>
-                <div className="power-headline">{status.isPowerOn?'Power is ON':'Power is OFF'}</div>
+                <div className="power-headline">{displayStatus?'Power is ON':'Power is OFF'}</div>
                 <p className="power-next">{status.isPowerOn?'Next outage: ':'Expected restoration: '}<strong>{status.next}</strong></p>
               </div>
             </div>
