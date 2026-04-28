@@ -300,10 +300,10 @@ export default function App() {
                 <p className="power-next">{status.isPowerOn?'Next outage: ':'Expected restoration: '}<strong>{status.next}</strong></p>
               </div>
             </div>
-            <p style={{fontSize:'0.76rem',color:'var(--muted)',marginBottom:8}}>Is this correct for your area?</p>
-            <div className="confirm-row">
-              <button className="confirm-btn yes" onClick={()=>setShowModal(true)}><CheckCircle size={15}/> Yes, power is ON</button>
-              <button className="confirm-btn no"  onClick={()=>setShowModal(true)}><XCircle size={15}/> No, it's OFF</button>
+            <p style={{fontSize:'0.76rem',color:'var(--muted)',marginBottom:8}}>Update live status for your area:</p>
+            <div className="report-row">
+              <button className="report-btn success" onClick={()=>setShowModal(true)}><Zap size={15} color="var(--primary)"/> Power ON</button>
+              <button className="report-btn danger"  onClick={()=>setShowModal(true)}><AlertTriangle size={15} color="var(--danger)"/> Report Outage</button>
             </div>
           </div>
 
