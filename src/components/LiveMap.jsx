@@ -5,7 +5,15 @@ import 'leaflet/dist/leaflet.css';
 export default function LiveMap({ reports }) {
   // Only plot reports that have latitude and longitude (from the recent Reverse Geocoding update)
   const mapData = useMemo(() => {
-    return reports.filter(r => r.lat && r.lng);
+    return reports
+      .filter(r => r.lat && r.lng)
+      .map(r => {
+        // Add a tiny random offset (approx 0 to 800 meters) so that reports from the same neighborhood
+        // scatter visually and form a cluster, rather than perfectly stacking and hiding each other.
+        const jitterLat = r.lat + (Math.random() - 0.5) * 0.015;
+        const jitterLng = r.lng + (Math.random() - 0.5) * 0.015;
+        return { ...r, jitterLat, jitterLng };
+      });
   }, [reports]);
 
   // Center on Ghana roughly
@@ -27,7 +35,7 @@ export default function LiveMap({ reports }) {
         return (
           <CircleMarker
             key={report.id || idx}
-            center={[report.lat, report.lng]}
+            center={[report.jitterLat, report.jitterLng]}
             pathOptions={{ color: color, fillColor: color, fillOpacity: 0.7, weight: 2 }}
             radius={8}
           >
