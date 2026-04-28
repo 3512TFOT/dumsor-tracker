@@ -39,10 +39,10 @@ export default function Onboarding({ onSelect }) {
           const dbMatch = findArea(detectedName);
 
           if (dbMatch) {
-            onSelect({ area: dbMatch.areaName, group: dbMatch.group, region: dbMatch.region });
+            onSelect({ area: dbMatch.areaName, group: dbMatch.group, region: dbMatch.region, lat: latitude, lng: longitude });
           } else {
             // If the specific neighborhood isn't in our DB, just use the name and default to Group A
-            onSelect({ area: detectedName, group: 'A', region: REGIONS_DATA[0] });
+            onSelect({ area: detectedName, group: 'A', region: REGIONS_DATA[0], lat: latitude, lng: longitude });
           }
         } catch (error) {
           console.error("Geocoding failed:", error);

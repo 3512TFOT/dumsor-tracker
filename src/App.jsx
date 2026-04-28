@@ -3,6 +3,7 @@ import { SpeedInsights } from '@vercel/speed-insights/react';
 
 const Onboarding = lazy(() => import('./components/Onboarding'));
 const ReportModal = lazy(() => import('./components/ReportModal'));
+const LiveMap = lazy(() => import('./components/LiveMap'));
 import { SCHEDULE_DATES, getCurrentOutageGroups, getNextSlot } from './data';
 import { db } from './firebase';
 import {
@@ -11,7 +12,7 @@ import {
 } from 'firebase/firestore';
 import {
   Zap, Power, PowerOff, Bell, BellOff, Calendar, Search,
-  Home, CalendarDays, MessageSquare,
+  Home, CalendarDays, MessageSquare, Map, Activity,
   CheckCircle, XCircle, ThumbsUp, ThumbsDown,
   AlertTriangle, Share2, MapPin, Clock, ChevronRight
 } from 'lucide-react';
@@ -253,12 +254,15 @@ export default function App() {
       type: type === 'off' ? 'off' : 'on',
       area: userInfo?.area || 'Unknown',
       region: userInfo?.region?.name || '',
+      lat: userInfo?.lat || null,
+      lng: userInfo?.lng || null,
       upvotes: 0,
       downvotes: 0,
       timestamp: serverTimestamp(),
     });
 
     setLastReport(now);
+    setShowModal(false);
   };
 
   const handleShare = ()=>{
@@ -583,6 +587,15 @@ export default function App() {
           </div>
         </>}
 
+        {/* ── MAP ── */}
+        {tab==='map' && (
+          <div className="fu map-container" style={{height:'65vh', width:'100%', borderRadius:'var(--r)', overflow:'hidden', border:'1px solid var(--border)'}}>
+             <Suspense fallback={<div style={{padding:40,textAlign:'center',color:'var(--text2)'}}>Loading Map...</div>}>
+               <LiveMap reports={reports} />
+             </Suspense>
+          </div>
+        )}
+
         {/* ── SEARCH ── */}
         {tab==='search' && (
           <div style={{paddingTop:8}}>
@@ -603,6 +616,7 @@ export default function App() {
         {[
           {id:'home',     icon:Home,          label:'Home'},
           {id:'schedule', icon:CalendarDays,  label:'Schedule'},
+          {id:'map',      icon:Map,           label:'Map'},
           {id:'community',icon:MessageSquare, label:'Community'},
           {id:'alerts',   icon:Bell,          label:'Alerts'},
         ].map(({id,icon:Icon,label})=>(
