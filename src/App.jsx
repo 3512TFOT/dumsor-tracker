@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import Onboarding from './components/Onboarding';
 import ReportModal from './components/ReportModal';
 import { SCHEDULE_DATES, getCurrentOutageGroups, getNextSlot } from './data';
@@ -563,6 +564,7 @@ export default function App() {
           </button>
         ))}
       </div>
+      <SpeedInsights />
     </>
   );
 }
