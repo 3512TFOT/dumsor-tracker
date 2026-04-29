@@ -7,6 +7,7 @@ export default function LiveMap({ reports }) {
   const mapData = useMemo(() => {
     return reports
       .filter(r => r.lat && r.lng)
+      .filter(r => r.lat >= 4.7 && r.lat <= 11.2 && r.lng >= -3.3 && r.lng <= 1.2)
       .map(r => {
         // Add a tiny random offset (approx 0 to 800 meters) so that reports from the same neighborhood
         // scatter visually and form a cluster, rather than perfectly stacking and hiding each other.

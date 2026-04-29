@@ -33,15 +33,20 @@ export default function Onboarding({ onSelect }) {
           
           // Get the most specific neighborhood/suburb available
           const addr = data.address || {};
+          
+          if (addr.country !== 'Ghana') {
+            alert('DumsorTracker is currently only available in Ghana.');
+            setLocating(false);
+            return;
+          }
+
           const detectedName = addr.suburb || addr.neighbourhood || addr.village || addr.town || addr.city || 'Detected Location';
 
-          // Try to cross-reference this detected name with our Dumsor database
           const dbMatch = findArea(detectedName);
 
           if (dbMatch) {
             onSelect({ area: dbMatch.areaName, group: dbMatch.group, region: dbMatch.region, lat: latitude, lng: longitude });
           } else {
-            // If the specific neighborhood isn't in our DB, just use the name and default to Group A
             onSelect({ area: detectedName, group: 'A', region: REGIONS_DATA[0], lat: latitude, lng: longitude });
           }
         } catch (error) {
