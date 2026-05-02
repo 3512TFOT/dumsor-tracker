@@ -364,7 +364,7 @@ export default function App() {
 
           {isCheckerMode && (
             <div className="status-banner fu" style={{background:'rgba(250,204,21,0.05)', border:'1px solid rgba(250,204,21,0.1)', padding:'12px 16px', borderRadius:'var(--r)', marginBottom:'12px', display:'flex', gap:'12px', alignItems:'center'}}>
-              <div style={{width:32, height:32, borderRadius:'50%', background:'var(--primary-g)', display:'flex', alignItems:'center', justifyCenter:'center', flexShrink:0}}>
+              <div style={{width:32, height:32, borderRadius:'50%', background:'var(--primary-g)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0}}>
                 <Zap size={16} color="var(--primary)"/>
               </div>
               <p style={{fontSize:'0.78rem', color:'var(--text2)', lineHeight:1.4, margin:0}}>
