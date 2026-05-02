@@ -476,27 +476,12 @@ export default function App() {
           <div className="fu">
             <div className="area-header" style={{marginBottom:16}}>
               <div className="area-tag"><Activity size={11}/> Grid Intelligence</div>
-              <h2 className="area-name" style={{fontSize:'1.3rem'}}>Real-time Analytics</h2>
-              <p className="area-meta">National Grid Status & Community Verification</p>
-            </div>
-
-            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:16}}>
-              <div className="alert-card" style={{margin:0, textAlign:'center'}}>
-                <h4 style={{fontSize:'0.7rem', color:'var(--muted)', textTransform:'uppercase', marginBottom:8}}>Global On/Off</h4>
-                <div style={{fontSize:'1.6rem', fontWeight:900, color:'var(--primary)'}}>
-                  {Math.round((reports.filter(r=>r.type==='on').length / (reports.length || 1)) * 100)}%
-                </div>
-                <p style={{fontSize:'0.65rem', color:'var(--muted2)'}}>Stability Ratio</p>
-              </div>
-              <div className="alert-card" style={{margin:0, textAlign:'center'}}>
-                <h4 style={{fontSize:'0.7rem', color:'var(--muted)', textTransform:'uppercase', marginBottom:8}}>Total Reports</h4>
-                <div style={{fontSize:'1.6rem', fontWeight:900, color:'var(--text)'}}>{reports.length}</div>
-                <p style={{fontSize:'0.65rem', color:'var(--muted2)'}}>Across Ghana</p>
-              </div>
+              <h2 className="area-name" style={{fontSize:'1.3rem'}}>Community Insights</h2>
+              <p className="area-meta">Active Outages & Historical Reference</p>
             </div>
 
             <div className="section-hd">
-              <h3>Outage Hotspots</h3>
+              <h3>Active Outage Hotspots</h3>
             </div>
             <div className="alert-card" style={{padding:'8px 20px'}}>
               {(() => {
@@ -506,7 +491,7 @@ export default function App() {
                 });
                 const sorted = Object.entries(hotspots).sort((a,b) => b[1] - a[1]).slice(0, 5);
                 
-                if (sorted.length === 0) return <p style={{fontSize:'0.82rem', color:'var(--muted)', padding:'12px 0'}}>No active outages reported.</p>;
+                if (sorted.length === 0) return <p style={{fontSize:'0.82rem', color:'var(--muted)', padding:'12px 0'}}>No active outages reported recently.</p>;
                 
                 return sorted.map(([area, count]) => (
                   <div key={area} className="outage-slot">
@@ -520,28 +505,10 @@ export default function App() {
               })()}
             </div>
 
-            <div className="alert-card" style={{marginTop:16, border:'1px dashed var(--primary)'}}>
-              <div style={{display:'flex', alignItems:'center', gap:8, marginBottom:8}}>
-                <Zap size={14} color="var(--primary)"/>
-                <h3 style={{fontSize:'0.95rem', margin:0}}>Predictive Insights</h3>
-                <span style={{fontSize:'0.65rem', background:'var(--primary-g)', color:'var(--primary)', padding:'2px 6px', borderRadius:4, marginLeft:'auto'}}>EXPERIMENTAL</span>
-              </div>
-              <p style={{fontSize:'0.78rem', color:'var(--muted)', lineHeight:1.6}}>
-                Our systems are beginning to analyze historical reporting patterns. Soon, we will provide <strong>Predictive Outage Forecasting</strong> to help you prepare even when no official schedule exists.
-              </p>
-            </div>
-
-            <div className="alert-card" style={{marginTop:16}}>
-              <h3 style={{fontSize:'0.95rem', marginBottom:4}}>Data Integrity</h3>
-              <p style={{fontSize:'0.78rem', color:'var(--muted)', lineHeight:1.6}}>
-                Our consensus engine currently uses a 20% sensitivity threshold. If 20% of contributors in a community report an outage, the status is automatically updated to reflect the reality on the ground, bypassing outdated official schedules.
-              </p>
-            </div>
-
             <div className="section-hd" style={{marginTop:24}}>
               <h3>Reference Schedule</h3>
             </div>
-            <p style={{fontSize:'0.75rem', color:'var(--muted)', marginBottom:12}}>Historical schedule (Apr 25 – May 1) for trend analysis.</p>
+            <p style={{fontSize:'0.75rem', color:'var(--muted)', marginBottom:12}}>Historical schedule (Apr 25 – May 1) for your area.</p>
             <div className="week-strip" style={{marginBottom:24}}>
               {SCHEDULE_DATES.map(d=>{
                 const hasOutage = d.slots.some(s=>s.group===userInfo.group);
