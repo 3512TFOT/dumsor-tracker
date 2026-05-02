@@ -1,10 +1,9 @@
 import { Zap, LayoutDashboard, CalendarDays, Users, Bell, Settings, MapPin, Radio } from 'lucide-react';
 
 const NAV = [
-  { icon: LayoutDashboard, label: "Dashboard",    id: "dashboard" },
-  { icon: CalendarDays,    label: "Full Schedule", id: "schedule"  },
-  { icon: Users,           label: "Community",     id: "community" },
-  { icon: Radio,           label: "Live Reports",  id: "live"      },
+  { icon: LayoutDashboard, label: "Home Dashboard", id: "home" },
+  { icon: Activity,        label: "Grid Intelligence", id: "intelligence" },
+  { icon: Users,           label: "Community Feed", id: "community" },
   { icon: MapPin,          label: "Coverage Map",  id: "map"       },
 ];
 

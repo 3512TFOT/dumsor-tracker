@@ -97,8 +97,9 @@ export default function App() {
   useEffect(()=>{
     if (!selectedDay) {
       const t = new Date().toISOString().split('T')[0];
+      const todaySchedule = SCHEDULE_DATES.find(d=>d.date===t);
       startTransition(() => {
-        setSelectedDay((SCHEDULE_DATES.find(d=>d.date===t)||SCHEDULE_DATES[0]).date);
+        setSelectedDay(todaySchedule ? todaySchedule.date : SCHEDULE_DATES[SCHEDULE_DATES.length - 1].date);
       });
     }
   },[selectedDay]);
@@ -138,8 +139,48 @@ export default function App() {
     return reports.filter(r=>r.area === userInfo.area);
   },[reports, userInfo]);
 
-  const conflictWarning = useMemo(() => {
+  const isCheckerMode = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0];
+    const lastScheduledDate = SCHEDULE_DATES[SCHEDULE_DATES.length - 1].date;
+    return today > lastScheduledDate;
+  }, []);
+
+  const consensus = useMemo(() => {
     if (!localReports || localReports.length === 0) return null;
+    
+    const windowMs = 4 * 60 * 60 * 1000; // 4 hour window for live consensus
+    const recentReports = localReports.filter(r => {
+      const ts = r.timestamp ? (r.timestamp.toMillis ? r.timestamp.toMillis() : Date.now()) : Date.now();
+      return (Date.now() - ts) < windowMs;
+    });
+
+    if (recentReports.length === 0) {
+      const last = localReports[0];
+      return { 
+        isPowerOn: last.type === 'on', 
+        message: `Based on last report ${timeAgo(last.timestamp)}`,
+        count: 1,
+        isLive: false 
+      };
+    }
+
+    let on = 0, off = 0;
+    recentReports.forEach(r => r.type === 'on' ? on++ : off++);
+    const total = on + off;
+    
+    // 20% Threshold Logic: If 20% or more report an outage, we flag it as OFF
+    const isPowerOn = (off / total) < 0.2;
+
+    return { 
+      isPowerOn, 
+      message: `${total} community reports recently`, 
+      count: total,
+      isLive: true 
+    };
+  }, [localReports]);
+
+  const conflictWarning = useMemo(() => {
+    if (isCheckerMode || !localReports || localReports.length === 0) return null;
     
     const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000;
     const recentReports = localReports.filter(r => {
@@ -154,18 +195,19 @@ export default function App() {
 
     const total = reportedOn + reportedOff;
     if (status.isPowerOn && (reportedOff / total >= 0.2)) {
-      return "ECG Schedule says power should be ON, but several community reports indicate it is OFF.";
+      return "ECG Schedule says power should be ON, but community reports indicate it is OFF.";
     }
     if (!status.isPowerOn && (reportedOn / total >= 0.2)) {
-      return "ECG Schedule says power should be OFF, but several community reports indicate it is ON.";
+      return "ECG Schedule says power should be OFF, but community reports indicate it is ON.";
     }
     return null;
-  }, [localReports, status]);
+  }, [localReports, status, isCheckerMode]);
 
   const displayStatus = useMemo(() => {
+    if (isCheckerMode) return consensus ? consensus.isPowerOn : true;
     if (conflictWarning) return !status.isPowerOn;
     return status.isPowerOn;
-  }, [status.isPowerOn, conflictWarning]);
+  }, [status.isPowerOn, conflictWarning, isCheckerMode, consensus]);
 
   const displayedReports = feedFilter==='local' ? localReports : reports;
 
@@ -316,9 +358,20 @@ export default function App() {
           <div className="area-header fu">
             <div className="area-tag"><MapPin size={11}/> {userInfo.region.name} · Group {userInfo.group}</div>
             <h2 className="area-name">{userInfo.area}</h2>
-            <p className="area-meta">Load Management · Apr 25 – May 1, 2026</p>
+            <p className="area-meta">{isCheckerMode ? 'Official Schedule Ended' : 'Load Management · Apr 25 – May 1, 2026'}</p>
             <button className="change-area-btn" onClick={()=>setUserInfo(null)}>Change area</button>
           </div>
+
+          {isCheckerMode && (
+            <div className="status-banner fu" style={{background:'rgba(250,204,21,0.05)', border:'1px solid rgba(250,204,21,0.1)', padding:'12px 16px', borderRadius:'var(--r)', marginBottom:'12px', display:'flex', gap:'12px', alignItems:'center'}}>
+              <div style={{width:32, height:32, borderRadius:'50%', background:'var(--primary-g)', display:'flex', alignItems:'center', justifyCenter:'center', flexShrink:0}}>
+                <Zap size={16} color="var(--primary)"/>
+              </div>
+              <p style={{fontSize:'0.78rem', color:'var(--text2)', lineHeight:1.4, margin:0}}>
+                <strong>Official schedule has ended.</strong> We are now relying on live community reports to determine power status in your area.
+              </p>
+            </div>
+          )}
 
           {showBanner && !notifEnabled && (
             <div className="perm-banner fu fu1">
@@ -342,11 +395,24 @@ export default function App() {
               </div>
               <div>
                 <div className="power-status-label">
-                  <span style={{width:6,height:6,borderRadius:'50%',background:iconColor,display:'inline-block',animation:'ripple 2s infinite'}}/>
-                  {displayStatus?'Power is Stable':'Outage Active'}
+                  <span style={{width:6,height:6,borderRadius:'50%',background:iconColor,display:'inline-block',animation:'ripple 2s infinite', marginRight:6}}/>
+                  {isCheckerMode ? (
+                    <span style={{display:'inline-flex', alignItems:'center', gap:4}}>
+                      <span className="live-badge">LIVE</span> Community Consensus
+                    </span>
+                  ) : (displayStatus ? 'Power is Stable' : 'Outage Active')}
                 </div>
-                <div className="power-headline">{displayStatus?'Power is ON':'Power is OFF'}</div>
-                <p className="power-next">{status.isPowerOn?'Next outage: ':'Expected restoration: '}<strong>{status.next}</strong></p>
+                <div className="power-headline">
+                  {displayStatus ? 'Power is ON' : 'Power is OFF'}
+                  {isCheckerMode && <span style={{fontSize:'0.7rem', fontWeight:400, marginLeft:8, opacity:0.7}}>(Verified)</span>}
+                </div>
+                <p className="power-next">
+                  {isCheckerMode 
+                    ? (consensus ? <span>{consensus.message} <span style={{opacity:0.6}}>({consensus.count} reports)</span></span> : 'No recent reports for this area')
+                    : (status.isPowerOn ? 'Next outage: ' : 'Expected restoration: ')
+                  }
+                  {!isCheckerMode && <strong>{status.next}</strong>}
+                </p>
               </div>
             </div>
             {conflictWarning && (
@@ -355,42 +421,28 @@ export default function App() {
                 <p style={{fontSize:'0.75rem', color:'#ffb400', lineHeight:1.4, margin:0}}>{conflictWarning}</p>
               </div>
             )}
-            <p style={{fontSize:'0.76rem',color:'var(--muted)',marginBottom:8}}>Is this correct for your area?</p>
+            <p style={{fontSize:'0.76rem',color:'var(--muted)',marginBottom:8, fontWeight:500}}>Is your power currently {displayStatus ? 'ON' : 'OFF'}?</p>
             <div className="confirm-row">
               <button className="confirm-btn yes" onClick={()=>setShowModal(true)}>
-                <CheckCircle size={15}/> Yes, it is {status.isPowerOn ? 'ON' : 'OFF'}
+                <CheckCircle size={15}/> Yes, it is {displayStatus ? 'ON' : 'OFF'}
               </button>
               <button className="confirm-btn no"  onClick={()=>setShowModal(true)}>
-                <XCircle size={15}/> No, it is {status.isPowerOn ? 'OFF' : 'ON'}
+                <XCircle size={15}/> No, it is {displayStatus ? 'OFF' : 'ON'}
               </button>
             </div>
           </div>
 
           <div className="action-row fu fu3">
-            <button className="action-btn primary" onClick={()=>exportICS(userInfo.group,userInfo.area,mySlots)}>
-              <Calendar size={16}/> Add to Calendar
-            </button>
+            {isCheckerMode ? (
+              <button className="action-btn primary" onClick={()=>setTab('community')}>
+                <MessageSquare size={16}/> Community Feed
+              </button>
+            ) : (
+              <button className="action-btn primary" onClick={()=>exportICS(userInfo.group,userInfo.area,mySlots)}>
+                <Calendar size={16}/> Add to Calendar
+              </button>
+            )}
             <button className="action-btn" onClick={handleShare}><Share2 size={16}/> Share</button>
-          </div>
-
-          <div className="section-hd fu fu3">
-            <h3>This Week</h3>
-            <a href="#" onClick={e=>{e.preventDefault();startTransition(()=>setTab('schedule'));}}>View schedule <ChevronRight size={14} style={{verticalAlign:'middle'}}/></a>
-          </div>
-
-          <div className="week-strip fu fu4">
-            {SCHEDULE_DATES.map(d=>{
-              const hasOutage = d.slots.some(s=>s.group===userInfo.group);
-              return (
-                <div key={d.date}
-                  className={`week-day ${hasOutage?'outage':''} ${d.date===today?'today':''} ${d.date===selectedDay?'selected':''}`}
-                  onClick={()=>{setSelectedDay(d.date);setTab('schedule');}}>
-                  <span className="week-day-abbr">{d.day.slice(0,3).toUpperCase()}</span>
-                  <span className="week-day-num">{new Date(d.date).getDate()}</span>
-                  <span className="week-day-dot" style={{background:hasOutage?'var(--danger)':'rgba(255,255,255,0.15)'}}/>
-                </div>
-              );
-            })}
           </div>
 
           <div className="section-hd fu fu5">
@@ -419,94 +471,119 @@ export default function App() {
           </div>
         </>}
 
-        {/* ── SCHEDULE ── */}
-        {tab==='schedule' && <>
-          <div className="area-header fu" style={{marginBottom:16}}>
-            <div className="area-tag"><Clock size={11}/> {userInfo.region.name} · Group {userInfo.group}</div>
-            <h2 className="area-name" style={{fontSize:'1.3rem'}}>My Outage Schedule</h2>
-            <p className="area-meta">{userInfo.area} · Apr 25 – May 1, 2026</p>
-            <button className="change-area-btn" onClick={()=>setUserInfo(null)}>Change area</button>
-          </div>
+        {/* ── INTELLIGENCE / ANALYTICS ── */}
+        {tab==='intelligence' && (
+          <div className="fu">
+            <div className="area-header" style={{marginBottom:16}}>
+              <div className="area-tag"><Activity size={11}/> Grid Intelligence</div>
+              <h2 className="area-name" style={{fontSize:'1.3rem'}}>Real-time Analytics</h2>
+              <p className="area-meta">National Grid Status & Community Verification</p>
+            </div>
 
-          <div className="week-strip fu fu1">
-            {SCHEDULE_DATES.map(d=>{
-              const hasOutage = d.slots.some(s=>s.group===userInfo.group);
-              return (
-                <div key={d.date}
-                  className={`week-day ${hasOutage?'outage':''} ${d.date===today?'today':''} ${d.date===selectedDay?'selected':''}`}
-                  onClick={()=>startTransition(()=>setSelectedDay(d.date))}>
-                  <span className="week-day-abbr">{d.day.slice(0,3).toUpperCase()}</span>
-                  <span className="week-day-num">{new Date(d.date).getDate()}</span>
-                  <span className="week-day-dot" style={{background:hasOutage?'var(--danger)':'rgba(255,255,255,0.15)'}}/>
+            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:16}}>
+              <div className="alert-card" style={{margin:0, textAlign:'center'}}>
+                <h4 style={{fontSize:'0.7rem', color:'var(--muted)', textTransform:'uppercase', marginBottom:8}}>Global On/Off</h4>
+                <div style={{fontSize:'1.6rem', fontWeight:900, color:'var(--primary)'}}>
+                  {Math.round((reports.filter(r=>r.type==='on').length / (reports.length || 1)) * 100)}%
                 </div>
-              );
-            })}
-          </div>
+                <p style={{fontSize:'0.65rem', color:'var(--muted2)'}}>Stability Ratio</p>
+              </div>
+              <div className="alert-card" style={{margin:0, textAlign:'center'}}>
+                <h4 style={{fontSize:'0.7rem', color:'var(--muted)', textTransform:'uppercase', marginBottom:8}}>Total Reports</h4>
+                <div style={{fontSize:'1.6rem', fontWeight:900, color:'var(--text)'}}>{reports.length}</div>
+                <p style={{fontSize:'0.65rem', color:'var(--muted2)'}}>Across Ghana</p>
+              </div>
+            </div>
 
-          {dayDetail && (
-            <div className="outage-detail fu fu2">
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
-                <div>
-                  <p style={{fontSize:'0.7rem',color:'var(--muted)',textTransform:'uppercase',letterSpacing:'0.1em',fontWeight:600,marginBottom:4}}>
-                    {dayDetail.mySlot?'⚡ Outage Scheduled':'✓ No Outage'}
-                  </p>
-                  <h2 style={{fontSize:'1.8rem',fontWeight:900,letterSpacing:'-0.03em',lineHeight:1,fontFamily:'Outfit,sans-serif'}}>{dayDetail.day}</h2>
-                  <p style={{fontSize:'0.95rem',color:'var(--muted2)',fontWeight:600,marginTop:4}}>
-                    {new Date(dayDetail.date).toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})}
-                  </p>
+            <div className="section-hd">
+              <h3>Outage Hotspots</h3>
+            </div>
+            <div className="alert-card" style={{padding:'8px 20px'}}>
+              {(() => {
+                const hotspots = {};
+                reports.filter(r => r.type === 'off').forEach(r => {
+                  hotspots[r.area] = (hotspots[r.area] || 0) + 1;
+                });
+                const sorted = Object.entries(hotspots).sort((a,b) => b[1] - a[1]).slice(0, 5);
+                
+                if (sorted.length === 0) return <p style={{fontSize:'0.82rem', color:'var(--muted)', padding:'12px 0'}}>No active outages reported.</p>;
+                
+                return sorted.map(([area, count]) => (
+                  <div key={area} className="outage-slot">
+                    <div style={{display:'flex', alignItems:'center', gap:12}}>
+                      <div style={{width:8, height:8, borderRadius:'50%', background:'var(--danger)'}} />
+                      <span style={{fontWeight:600, fontSize:'0.9rem'}}>{area}</span>
+                    </div>
+                    <span className="slot-chip off">{count} Reports</span>
+                  </div>
+                ));
+              })()}
+            </div>
+
+            <div className="alert-card" style={{marginTop:16, border:'1px dashed var(--primary)'}}>
+              <div style={{display:'flex', alignItems:'center', gap:8, marginBottom:8}}>
+                <Zap size={14} color="var(--primary)"/>
+                <h3 style={{fontSize:'0.95rem', margin:0}}>Predictive Insights</h3>
+                <span style={{fontSize:'0.65rem', background:'var(--primary-g)', color:'var(--primary)', padding:'2px 6px', borderRadius:4, marginLeft:'auto'}}>EXPERIMENTAL</span>
+              </div>
+              <p style={{fontSize:'0.78rem', color:'var(--muted)', lineHeight:1.6}}>
+                Our systems are beginning to analyze historical reporting patterns. Soon, we will provide <strong>Predictive Outage Forecasting</strong> to help you prepare even when no official schedule exists.
+              </p>
+            </div>
+
+            <div className="alert-card" style={{marginTop:16}}>
+              <h3 style={{fontSize:'0.95rem', marginBottom:4}}>Data Integrity</h3>
+              <p style={{fontSize:'0.78rem', color:'var(--muted)', lineHeight:1.6}}>
+                Our consensus engine currently uses a 20% sensitivity threshold. If 20% of contributors in a community report an outage, the status is automatically updated to reflect the reality on the ground, bypassing outdated official schedules.
+              </p>
+            </div>
+
+            <div className="section-hd" style={{marginTop:24}}>
+              <h3>Reference Schedule</h3>
+            </div>
+            <p style={{fontSize:'0.75rem', color:'var(--muted)', marginBottom:12}}>Historical schedule (Apr 25 – May 1) for trend analysis.</p>
+            <div className="week-strip" style={{marginBottom:24}}>
+              {SCHEDULE_DATES.map(d=>{
+                const hasOutage = d.slots.some(s=>s.group===userInfo.group);
+                return (
+                  <div key={d.date}
+                    className={`week-day ${hasOutage?'outage':''} ${d.date===selectedDay?'selected':''}`}
+                    onClick={()=>setSelectedDay(d.date)}>
+                    <span className="week-day-abbr">{d.day.slice(0,3).toUpperCase()}</span>
+                    <span className="week-day-num">{new Date(d.date).getDate()}</span>
+                    <span className="week-day-dot" style={{background:hasOutage?'var(--danger)':'rgba(255,255,255,0.15)'}}/>
+                  </div>
+                );
+              })}
+            </div>
+
+            {dayDetail && (
+              <div className="alert-card">
+                <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12}}>
+                  <h4 style={{margin:0}}>{dayDetail.day}, {new Date(dayDetail.date).toLocaleDateString('en-GB', {day:'numeric', month:'short'})}</h4>
+                  <span style={{fontSize:'0.7rem', color:'var(--muted)'}}>GROUP {userInfo.group}</span>
                 </div>
                 {dayDetail.mySlot ? (
-                  <div style={{textAlign:'right'}}>
-                    <span className="slot-chip off" style={{display:'block',marginBottom:8}}>Your Outage</span>
-                    <p style={{fontSize:'1.15rem',fontWeight:800,color:'var(--danger)',fontFamily:'Outfit,sans-serif'}}>
-                      {dayDetail.mySlot.start}<span style={{color:'var(--muted)',fontWeight:400,fontSize:'0.9rem'}}> – </span>{dayDetail.mySlot.end}
-                    </p>
-                    <p style={{fontSize:'0.72rem',color:'var(--muted)',marginTop:2}}>6 hour outage</p>
+                  <div className="outage-slot">
+                    <div style={{display:'flex', alignItems:'center', gap:10}}>
+                      <Clock size={14} color="var(--danger)"/>
+                      <span style={{fontWeight:600}}>{dayDetail.mySlot.start} – {dayDetail.mySlot.end}</span>
+                    </div>
+                    <span className="slot-chip off">Planned Outage</span>
                   </div>
-                ) : <span style={{fontSize:'0.85rem',color:'var(--muted)'}}>Power stable</span>}
+                ) : (
+                  <div className="outage-slot">
+                    <div style={{display:'flex', alignItems:'center', gap:10}}>
+                      <CheckCircle size={14} color="var(--primary)"/>
+                      <span style={{fontWeight:600}}>No Outage Scheduled</span>
+                    </div>
+                    <span className="slot-chip on">Stable</span>
+                  </div>
+                )}
               </div>
-              <button className="action-btn" style={{width:'100%'}}
-                onClick={()=>exportICS(userInfo.group,userInfo.area,
-                  dayDetail.slots.filter(s=>s.group===userInfo.group).map(s=>({...s,date:dayDetail.date,day:dayDetail.day}))
-                )}>
-                <Calendar size={15}/> Save {dayDetail.day} to Calendar
-              </button>
-            </div>
-          )}
-
-          <div className="section-hd fu fu3" style={{marginTop:4}}>
-            <h3>Full Week — My Outages</h3>
-            <span style={{fontSize:'0.75rem',color:'var(--muted)'}}>{mySlots.length} slot{mySlots.length!==1?'s':''}</span>
+            )}
           </div>
-          <div className="outage-detail fu fu4" style={{padding:'8px 20px'}}>
-            {mySlots.length===0 && <p style={{color:'var(--muted)',fontSize:'0.85rem',padding:'12px 0'}}>No outages scheduled for your area this week.</p>}
-            {mySlots.map((s,i)=>(
-              <div key={i} className="outage-slot" style={{cursor:'pointer'}} onClick={()=>setSelectedDay(s.date)}>
-                <div style={{display:'flex',alignItems:'center',gap:16}}>
-                  <div style={{minWidth:52,textAlign:'center',
-                    background:s.date===selectedDay?'var(--primary-g)':'rgba(255,255,255,0.04)',
-                    border:`1px solid ${s.date===selectedDay?'rgba(250,204,21,0.3)':'var(--border)'}`,
-                    borderRadius:12,padding:'8px 6px'}}>
-                    <p style={{fontSize:'0.6rem',color:'var(--muted)',textTransform:'uppercase',letterSpacing:'0.08em',fontWeight:600}}>
-                      {new Date(s.date).toLocaleDateString('en-GB',{month:'short'})}
-                    </p>
-                    <p style={{fontSize:'1.3rem',fontWeight:900,lineHeight:1,fontFamily:'Outfit,sans-serif',color:s.date===selectedDay?'var(--primary)':'var(--text)'}}>
-                      {new Date(s.date).getDate()}
-                    </p>
-                  </div>
-                  <div>
-                    <p style={{fontWeight:700,fontSize:'1rem',marginBottom:3,fontFamily:'Outfit,sans-serif'}}>{s.day}</p>
-                    <div className="slot-time"><Clock size={12}/><span>{s.start} – {s.end}</span><span style={{fontSize:'0.7rem',color:'var(--muted)'}}>· 6 hrs</span></div>
-                  </div>
-                </div>
-                <span className="slot-chip off">Outage</span>
-              </div>
-            ))}
-          </div>
-          <button className="action-btn primary fu fu5" style={{width:'100%'}} onClick={()=>exportICS(userInfo.group,userInfo.area,mySlots)}>
-            <Calendar size={16}/> Export Full Week to Calendar
-          </button>
-        </>}
+        )}
 
         {/* ── COMMUNITY ── */}
         {tab==='community' && <>
@@ -574,15 +651,24 @@ export default function App() {
               </div>
             ))}
           </div>
-          <div className="alert-card fu fu2">
-            <h3 style={{fontSize:'0.95rem',marginBottom:4}}>Calendar Integration</h3>
-            <p style={{fontSize:'0.78rem',color:'var(--muted)',marginBottom:16,lineHeight:1.6}}>
-              Save your outage slots to Google Calendar, Apple Calendar, or Outlook. Includes a 1-hour reminder.
-            </p>
-            <button className="action-btn primary" style={{width:'100%'}} onClick={()=>exportICS(userInfo.group,userInfo.area,mySlots)}>
-              <Calendar size={16}/> Export {mySlots.length} Outage{mySlots.length!==1?'s':''} to Calendar
-            </button>
-          </div>
+          {!isCheckerMode ? (
+            <div className="alert-card fu fu2">
+              <h3 style={{fontSize:'0.95rem',marginBottom:4}}>Calendar Integration</h3>
+              <p style={{fontSize:'0.78rem',color:'var(--muted)',marginBottom:16,lineHeight:1.6}}>
+                Save your outage slots to Google Calendar, Apple Calendar, or Outlook. Includes a 1-hour reminder.
+              </p>
+              <button className="action-btn primary" style={{width:'100%'}} onClick={()=>exportICS(userInfo.group,userInfo.area,mySlots)}>
+                <Calendar size={16}/> Export {mySlots.length} Outage{mySlots.length!==1?'s':''} to Calendar
+              </button>
+            </div>
+          ) : (
+            <div className="alert-card fu fu2" style={{border:'1px dashed var(--border)'}}>
+              <h3 style={{fontSize:'0.95rem',marginBottom:4}}>Schedule-based Alerts</h3>
+              <p style={{fontSize:'0.78rem',color:'var(--muted)',lineHeight:1.6}}>
+                Official schedule-based alerts are currently inactive as the latest schedule has ended. We are transitioning to <strong>Community-driven notifications</strong> based on live reports.
+              </p>
+            </div>
+          )}
           <div className="alert-card fu fu3">
             <h3 style={{fontSize:'0.95rem',marginBottom:4}}>Share with Family</h3>
             <p style={{fontSize:'0.78rem',color:'var(--muted)',marginBottom:12,lineHeight:1.6}}>
@@ -618,17 +704,20 @@ export default function App() {
 
       {/* Tab Bar */}
       <div className="tab-bar">
-        {[
-          {id:'home',     icon:Home,          label:'Home'},
-          {id:'schedule', icon:CalendarDays,  label:'Schedule'},
-          {id:'map',      icon:Map,           label:'Map'},
-          {id:'community',icon:MessageSquare, label:'Community'},
-          {id:'alerts',   icon:Bell,          label:'Alerts'},
-        ].map(({id,icon:Icon,label})=>(
-          <button key={id} className={`tab-item ${tab===id?'active':''}`} onClick={()=>startTransition(()=>setTab(id))}>
-            <Icon size={20}/>{label}
-          </button>
-        ))}
+        {(() => {
+          const NAV = [
+            { icon: Home,          label: "Home",           id: "home" },
+            { icon: Activity,      label: "Intelligence",   id: "intelligence" },
+            { icon: MessageSquare, label: "Community",      id: "community" },
+            { icon: Map,           label: "Map",            id: "map" },
+            { icon: Bell,          label: "Alerts",         id: "alerts" },
+          ];
+          return NAV.map(({id, icon: Icon, label}) => (
+            <button key={id} className={`tab-item ${tab===id?'active':''}`} onClick={()=>startTransition(()=>setTab(id))}>
+              <Icon size={20}/>{label}
+            </button>
+          ));
+        })()}
       </div>
       <SpeedInsights />
     </>

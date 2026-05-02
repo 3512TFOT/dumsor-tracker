@@ -379,6 +379,27 @@ button{font-family:'Inter',sans-serif;cursor:pointer;}
 
 @keyframes ripple{0%,100%{opacity:1;}50%{opacity:0.4;}}
 
+/* ── LIVE BADGE ──────────────────────────────── */
+.live-badge {
+  background: var(--danger);
+  color: #fff;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.6rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  margin-right: 4px;
+  display: inline-flex;
+  align-items: center;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(0.95); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
 /* ── FOOTER CREDIT ─────────────────────────────── */
 .app-credit{
   text-align:center;
