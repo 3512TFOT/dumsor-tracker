@@ -8,9 +8,10 @@ service cloud.firestore {
       // Allow anyone to read reports
       allow read: if true;
       
-      // Allow anonymous report submission with validation
+      // Allow anonymous report submission with strict validation
       allow create: if 
         request.resource.data.keys().hasAll(['user', 'text', 'type', 'area', 'timestamp', 'upvotes', 'downvotes', 'deviceId']) &&
+        request.resource.data.user == 'Anonymous' &&
         request.resource.data.text is string &&
         request.resource.data.text.size() <= 200 &&
         request.resource.data.type in ['on', 'off'] &&
@@ -19,17 +20,17 @@ service cloud.firestore {
         request.resource.data.downvotes == 0 &&
         request.resource.data.timestamp == request.time;
 
-      // Allow voting, but only incrementing upvotes or downvotes
-      // Note: Without auth, we can't strictly prevent double-voting on the server, 
-      // but we can prevent users from overwriting other fields or decreasing counts.
+      // Allow voting: ONLY incrementing upvotes/downvotes, NO other changes
       allow update: if
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvotes', 'downvotes']) &&
+        request.resource.data.user == resource.data.user && // Prevent user spoofing
+        request.resource.data.timestamp == resource.data.timestamp && // Prevent time manipulation
         (
           (request.resource.data.upvotes == resource.data.upvotes + 1 && request.resource.data.downvotes == resource.data.downvotes) ||
           (request.resource.data.downvotes == resource.data.downvotes + 1 && request.resource.data.upvotes == resource.data.upvotes)
         );
 
-      // Prevent deletion and general updates
+      // Prevent deletion
       allow delete: if false;
     }
   }
