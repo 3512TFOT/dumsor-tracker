@@ -45,9 +45,9 @@ export default function Onboarding({ onSelect }) {
           const dbMatch = findArea(detectedName);
 
           if (dbMatch) {
-            onSelect({ area: dbMatch.areaName, group: dbMatch.group, region: dbMatch.region, lat: latitude, lng: longitude });
+            onSelect({ area: dbMatch.areaName, group: dbMatch.group, region: dbMatch.region, lat: parseFloat(latitude.toFixed(3)), lng: parseFloat(longitude.toFixed(3)) });
           } else {
-            onSelect({ area: detectedName, group: 'A', region: REGIONS_DATA[0], lat: latitude, lng: longitude });
+            onSelect({ area: detectedName, group: 'A', region: REGIONS_DATA[0], lat: parseFloat(latitude.toFixed(3)), lng: parseFloat(longitude.toFixed(3)) });
           }
         } catch (error) {
           console.error("Geocoding failed:", error);

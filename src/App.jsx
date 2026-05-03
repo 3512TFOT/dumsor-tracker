@@ -95,6 +95,7 @@ export default function App() {
   const [firedAlerts, setFiredAlerts]     = useLocalStorage('dumsor_fired', {});
   const [lastReport, setLastReport]       = useLocalStorage('dumsor_last_rep', 0);
   const [votedReports, setVotedReports]   = useLocalStorage('dumsor_votes', {});
+  const [deviceId]       = useLocalStorage('dumsor_device', Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15));
   const [showModal, setShowModal]         = useState(false);
   const [feedFilter, setFeedFilter]       = useState('local');
   const [reports, setReports]             = useState([]);
@@ -304,17 +305,23 @@ export default function App() {
     const cleanText = sanitizeText(text);
     if (!cleanText) return;
 
+    // Privacy: Truncate coordinates to ~100m precision
+    const lat = userInfo?.lat ? parseFloat(userInfo.lat.toFixed(3)) : null;
+    const lng = userInfo?.lng ? parseFloat(userInfo.lng.toFixed(3)) : null;
+
     await addDoc(collection(db,'reports'),{
       user: 'Anonymous',
       text: cleanText,
       type: type === 'off' ? 'off' : 'on',
       area: userInfo?.area || 'Unknown',
       region: userInfo?.region?.name || '',
-      lat: userInfo?.lat || null,
-      lng: userInfo?.lng || null,
+      lat,
+      lng,
+      deviceId, // For basic abuse tracking
       upvotes: 0,
       downvotes: 0,
       timestamp: serverTimestamp(),
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24hr TTL
     });
 
     setLastReport(now);

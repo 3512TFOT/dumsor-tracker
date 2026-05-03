@@ -10,10 +10,12 @@ service cloud.firestore {
       
       // Allow anonymous report submission with validation
       allow create: if 
-        request.resource.data.keys().hasAll(['user', 'text', 'type', 'area', 'timestamp', 'upvotes', 'downvotes']) &&
+        request.resource.data.keys().hasAll(['user', 'text', 'type', 'area', 'timestamp', 'upvotes', 'downvotes', 'deviceId', 'expiresAt']) &&
         request.resource.data.text is string &&
         request.resource.data.text.size() <= 200 &&
         request.resource.data.type in ['on', 'off'] &&
+        request.resource.data.deviceId is string &&
+        request.resource.data.expiresAt is timestamp &&
         request.resource.data.upvotes == 0 &&
         request.resource.data.downvotes == 0 &&
         request.resource.data.timestamp == request.time;
