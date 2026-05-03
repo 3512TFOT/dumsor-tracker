@@ -18,6 +18,14 @@ import {
 } from 'lucide-react';
 
 function initials(n) { return n.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2); }
+function sanitizeText(str) {
+  if (!str) return '';
+  return str
+    .replace(/<[^>]*>?/gm, '') // Strip HTML
+    .replace(/[^\w\s\d.,!?'"-]/gi, '') // Strip suspicious characters
+    .trim()
+    .substring(0, 200);
+}
 
 function timeAgo(ts) {
   if (!ts) return 'Just now';
@@ -292,8 +300,9 @@ export default function App() {
       return;
     }
     
-    // Quick sanitization
-    const cleanText = text.replace(/<[^>]*>?/gm, '').substring(0, 200);
+    // Robust sanitization
+    const cleanText = sanitizeText(text);
+    if (!cleanText) return;
 
     await addDoc(collection(db,'reports'),{
       user: 'Anonymous',
