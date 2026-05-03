@@ -321,7 +321,6 @@ export default function App() {
       upvotes: 0,
       downvotes: 0,
       timestamp: serverTimestamp(),
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24hr TTL
     });
 
     setLastReport(now);
