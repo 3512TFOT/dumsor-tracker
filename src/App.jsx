@@ -118,6 +118,8 @@ export default function App() {
   const [feedFilter, setFeedFilter]       = useState('local');
   const [reports, setReports]             = useState([]);
   const [reportsLoading, setReportsLoading] = useState(true);
+  const [isOffline, setIsOffline]           = useState(false);
+  const [isSyncing, setIsSyncing]           = useState(false);
   
   const [isPending, startTransition]      = useTransition();
 
@@ -136,30 +138,30 @@ export default function App() {
     console.log("🔥 Firebase Project:", db.app.options.projectId);
     console.log("📡 Connecting to Ghana reports...");
     
-    // IMPORTANT: We remove orderBy from the query itself to avoid "missing index" hangs
-    // and to ensure we get ALL reports (including those missing a timestamp field).
-    // We handle sorting entirely on the client for maximum speed and reliability.
+    // Use orderBy to get the LATEST reports. Confirmed index exists.
     const q = query(
       collection(db, 'reports'),
+      orderBy('timestamp', 'desc'),
       limit(100) 
     );
     
     const unsub = onSnapshot(q, snap=>{
-      console.log(`✅ Data Received! Raw Count: ${snap.docs.length}`, 
-                  snap.metadata.hasPendingWrites ? "(Local)" : "(Server)");
+      setIsOffline(snap.metadata.fromCache);
+      setIsSyncing(snap.metadata.hasPendingWrites);
+      
+      console.log(`✅ Data Received! Count: ${snap.docs.length}`, 
+                  snap.metadata.fromCache ? "(CACHE)" : "(LIVE)");
       
       const parsedReports = snap.docs.map(d => {
         const data = d.data();
         let ts = data.timestamp;
         
-        // Convert to a consistent number for sorting
         let millis = 0;
         if (ts) {
           if (ts.toMillis) millis = ts.toMillis();
           else if (typeof ts.seconds === 'number') millis = ts.seconds * 1000;
           else millis = Number(ts);
         } else {
-          // If no timestamp (e.g. pending write), use current time so it's at the top
           millis = Date.now(); 
         }
 
@@ -175,14 +177,12 @@ export default function App() {
         };
       });
 
-      // Sort descending (newest first)
-      parsedReports.sort((a, b) => b._sortTime - a._sortTime);
-
       setReports(parsedReports);
       setReportsLoading(false);
     }, (err)=>{
       console.error("❌ Firestore Connection Error:", err.code, err.message);
       setReportsLoading(false);
+      if (err.code === 'permission-denied') alert('Database access denied. Please check your connection or project quota.');
     });
     return ()=>unsub();
   },[]);
@@ -369,7 +369,8 @@ export default function App() {
 
     try {
       console.log("📤 Sending report...");
-      await addDoc(collection(db,'reports'),{
+      // Add a small timeout expectation logic
+      const savePromise = addDoc(collection(db,'reports'),{
         user: 'Anonymous',
         text: cleanText,
         type: type === 'off' ? 'off' : 'on',
@@ -382,15 +383,17 @@ export default function App() {
         downvotes: 0,
         timestamp: serverTimestamp(),
       });
-      console.log("✅ Report saved to Firestore");
-      setLastReport(now);
+
+      // Show immediate feedback
       setShowModal(false);
+      setLastReport(now);
       
-      // Feedback to user
-      alert('Report sent! Thank you for updating the community.');
+      await savePromise;
+      console.log("✅ Report saved to server");
+      alert('Report verified! Thank you for updating the community.');
     } catch (error) {
       console.error("❌ Firestore Write Error:", error);
-      alert(`Could not save report: ${error.message}. Please check your connection.`);
+      alert(`Report not saved: ${error.message}. You might be hitting a database limit.`);
     }
   };
 
@@ -426,6 +429,8 @@ export default function App() {
           <div className="nav-logo">
             <div className="nav-logo-icon"><Zap size={18} color="#000" fill="#000"/></div>
             <h1>DumsorTracker</h1>
+            {isOffline && <span className="status-indicator offline">Offline</span>}
+            {!isOffline && <span className="status-indicator live">Live</span>}
           </div>
           <div className="nav-actions">
             <button className="icon-btn" onClick={()=>startTransition(()=>setTab('search'))}><Search size={17}/></button>
