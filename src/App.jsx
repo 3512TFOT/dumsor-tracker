@@ -138,11 +138,9 @@ export default function App() {
     console.log("🔥 Firebase Project:", db.app.options.projectId);
     console.log("📡 Connecting to Ghana reports...");
     
-    // Use orderBy to get the LATEST reports. Confirmed index exists.
     const q = query(
       collection(db, 'reports'),
-      orderBy('timestamp', 'desc'),
-      limit(100) 
+      limit(200) 
     );
     
     const unsub = onSnapshot(q, snap=>{
@@ -177,12 +175,15 @@ export default function App() {
         };
       });
 
+      // Sort descending on client to ensure latest are at the top
+      parsedReports.sort((a, b) => b._sortTime - a._sortTime);
+
       setReports(parsedReports);
       setReportsLoading(false);
     }, (err)=>{
       console.error("❌ Firestore Connection Error:", err.code, err.message);
       setReportsLoading(false);
-      if (err.code === 'permission-denied') alert('Database access denied. Please check your connection or project quota.');
+      alert(`Connection Error (${err.code}): ${err.message}`);
     });
     return ()=>unsub();
   },[]);
