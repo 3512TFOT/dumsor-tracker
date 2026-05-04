@@ -140,7 +140,7 @@ export default function App() {
     
     const q = query(
       collection(db, 'reports'),
-      limit(200) 
+      limit(500) 
     );
     
     const unsub = onSnapshot(q, snap=>{
@@ -159,8 +159,6 @@ export default function App() {
           if (ts.toMillis) millis = ts.toMillis();
           else if (typeof ts.seconds === 'number') millis = ts.seconds * 1000;
           else millis = Number(ts);
-        } else {
-          millis = Date.now(); 
         }
 
         return {
@@ -171,11 +169,11 @@ export default function App() {
           text: data.text || '(No description)',
           type: data.type || 'off',
           timestamp: ts || { toMillis: () => Date.now(), seconds: Math.floor(Date.now()/1000) },
-          _sortTime: millis
+          _sortTime: millis || Date.now() // Fallback to current time if missing
         };
       });
 
-      // Sort descending on client to ensure latest are at the top
+      // Sort descending on client
       parsedReports.sort((a, b) => b._sortTime - a._sortTime);
 
       setReports(parsedReports);
@@ -183,7 +181,7 @@ export default function App() {
     }, (err)=>{
       console.error("❌ Firestore Connection Error:", err.code, err.message);
       setReportsLoading(false);
-      alert(`Connection Error (${err.code}): ${err.message}`);
+      alert(`Connection Error (${err.code}): ${err.message}. Please check if you have an ad-blocker or VPN on.`);
     });
     return ()=>unsub();
   },[]);
@@ -748,10 +746,16 @@ export default function App() {
             </Suspense>
           </div>
         )}
-        {/* Credit */}
+        {/* Debug / Credit */}
         <div className="app-credit">
+          {reports.length > 0 ? (
+            <span style={{color:'var(--primary)', fontWeight:600}}>{reports.length} Reports Loaded</span>
+          ) : (
+            <span style={{color:'var(--danger)'}}>0 Reports Found</span>
+          )}
+          &nbsp;·&nbsp;
           Built by <a href="https://github.com/3512TFOT" target="_blank" rel="noreferrer">Kwabena Essuman</a>
-          &nbsp;·&nbsp; DumsorTracker Ghana &nbsp;·&nbsp; 2026
+          &nbsp;·&nbsp; 2026
         </div>
       </div>
 
