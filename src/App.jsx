@@ -429,8 +429,6 @@ export default function App() {
           <div className="nav-logo">
             <div className="nav-logo-icon"><Zap size={18} color="#000" fill="#000"/></div>
             <h1>DumsorTracker</h1>
-            {isOffline && <span className="status-indicator offline">Offline</span>}
-            {!isOffline && <span className="status-indicator live">Live</span>}
           </div>
           <div className="nav-actions">
             <button className="icon-btn" onClick={()=>startTransition(()=>setTab('search'))}><Search size={17}/></button>
