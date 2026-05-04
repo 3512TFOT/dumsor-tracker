@@ -4,8 +4,11 @@ service cloud.firestore {
     
     // Reports collection security
     match /reports/{reportId} {
-      // Temporarily allow everything to check if rules are the bottleneck
-      allow read, write: if true;
+      // Allow reading and creating new reports
+      allow read, create: if true;
+      
+      // Prevent updating or deleting reports to stop tampering
+      allow update, delete: if false;
     }
   }
 }
