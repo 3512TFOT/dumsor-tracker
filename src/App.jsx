@@ -29,11 +29,29 @@ function sanitizeText(str) {
 
 function timeAgo(ts) {
   if (!ts) return 'Just now';
-  const sec = Math.floor((Date.now() - ts.toMillis()) / 1000);
-  if (sec < 60)  return `${sec}s ago`;
-  if (sec < 3600) return `${Math.floor(sec/60)}m ago`;
-  if (sec < 86400) return `${Math.floor(sec/3600)}h ago`;
-  return `${Math.floor(sec/86400)}d ago`;
+  try {
+    // Robustly handle Timestamp objects, plain objects {seconds, nanoseconds}, or Date/millis
+    let millis;
+    if (ts.toMillis) {
+      millis = ts.toMillis();
+    } else if (typeof ts.seconds === 'number') {
+      millis = ts.seconds * 1000 + (ts.nanoseconds || 0) / 1000000;
+    } else if (ts.getTime) {
+      millis = ts.getTime();
+    } else {
+      millis = Number(ts);
+    }
+    
+    if (isNaN(millis)) return 'Recently';
+    
+    const sec = Math.floor((Date.now() - millis) / 1000);
+    if (sec < 60)  return `${sec}s ago`;
+    if (sec < 3600) return `${Math.floor(sec/60)}m ago`;
+    if (sec < 86400) return `${Math.floor(sec/3600)}h ago`;
+    return `${Math.floor(sec/86400)}d ago`;
+  } catch (e) {
+    return 'Recently';
+  }
 }
 
 function exportICS(group, area, slots) {
@@ -115,15 +133,57 @@ export default function App() {
 
   // ── Live Firestore reports ──────────────────────────────
   useEffect(()=>{
+    console.log("🔥 Firebase Project:", db.app.options.projectId);
+    console.log("📡 Connecting to Ghana reports...");
+    
+    // IMPORTANT: We remove orderBy from the query itself to avoid "missing index" hangs
+    // and to ensure we get ALL reports (including those missing a timestamp field).
+    // We handle sorting entirely on the client for maximum speed and reliability.
     const q = query(
-      collection(db,'reports'),
-      orderBy('timestamp','desc'),
-      limit(500)
+      collection(db, 'reports'),
+      limit(100) 
     );
+    
     const unsub = onSnapshot(q, snap=>{
-      setReports(snap.docs.map(d=>({ id:d.id, ...d.data() })));
+      console.log(`✅ Data Received! Raw Count: ${snap.docs.length}`, 
+                  snap.metadata.hasPendingWrites ? "(Local)" : "(Server)");
+      
+      const parsedReports = snap.docs.map(d => {
+        const data = d.data();
+        let ts = data.timestamp;
+        
+        // Convert to a consistent number for sorting
+        let millis = 0;
+        if (ts) {
+          if (ts.toMillis) millis = ts.toMillis();
+          else if (typeof ts.seconds === 'number') millis = ts.seconds * 1000;
+          else millis = Number(ts);
+        } else {
+          // If no timestamp (e.g. pending write), use current time so it's at the top
+          millis = Date.now(); 
+        }
+
+        return {
+          id: d.id,
+          ...data,
+          area: data.area || 'Unknown Area',
+          user: data.user || 'Anonymous',
+          text: data.text || '(No description)',
+          type: data.type || 'off',
+          timestamp: ts || { toMillis: () => Date.now(), seconds: Math.floor(Date.now()/1000) },
+          _sortTime: millis
+        };
+      });
+
+      // Sort descending (newest first)
+      parsedReports.sort((a, b) => b._sortTime - a._sortTime);
+
+      setReports(parsedReports);
       setReportsLoading(false);
-    }, ()=>setReportsLoading(false));
+    }, (err)=>{
+      console.error("❌ Firestore Connection Error:", err.code, err.message);
+      setReportsLoading(false);
+    });
     return ()=>unsub();
   },[]);
 
@@ -296,35 +356,42 @@ export default function App() {
 
   const handleReport = async ({type,text})=>{
     const now = Date.now();
-    if (now - lastReport < 300000) { // 5 minutes cooldown
-      alert('Please wait a few minutes before submitting another report.');
+    if (now - lastReport < 60000) { // Reduced to 1 minute for easier testing
+      alert('Please wait a minute before submitting another report.');
       return;
     }
     
-    // Robust sanitization
     const cleanText = sanitizeText(text);
     if (!cleanText) return;
 
-    // Privacy: Truncate coordinates to ~100m precision
     const lat = userInfo?.lat ? parseFloat(userInfo.lat.toFixed(3)) : null;
     const lng = userInfo?.lng ? parseFloat(userInfo.lng.toFixed(3)) : null;
 
-    await addDoc(collection(db,'reports'),{
-      user: 'Anonymous',
-      text: cleanText,
-      type: type === 'off' ? 'off' : 'on',
-      area: userInfo?.area || 'Unknown',
-      region: userInfo?.region?.name || '',
-      lat,
-      lng,
-      deviceId, // For basic abuse tracking
-      upvotes: 0,
-      downvotes: 0,
-      timestamp: serverTimestamp(),
-    });
-
-    setLastReport(now);
-    setShowModal(false);
+    try {
+      console.log("📤 Sending report...");
+      await addDoc(collection(db,'reports'),{
+        user: 'Anonymous',
+        text: cleanText,
+        type: type === 'off' ? 'off' : 'on',
+        area: userInfo?.area || 'Unknown',
+        region: userInfo?.region?.name || '',
+        lat,
+        lng,
+        deviceId,
+        upvotes: 0,
+        downvotes: 0,
+        timestamp: serverTimestamp(),
+      });
+      console.log("✅ Report saved to Firestore");
+      setLastReport(now);
+      setShowModal(false);
+      
+      // Feedback to user
+      alert('Report sent! Thank you for updating the community.');
+    } catch (error) {
+      console.error("❌ Firestore Write Error:", error);
+      alert(`Could not save report: ${error.message}. Please check your connection.`);
+    }
   };
 
   const handleShare = ()=>{
@@ -589,8 +656,8 @@ export default function App() {
             {!reportsLoading && displayedReports.length===0 && (
               <p style={{color:'var(--text3)',fontSize:'0.82rem',padding:'16px 0'}}>No reports {feedFilter==='local'?`for ${userInfo.area}`:''} yet — be the first to share!</p>
             )}
-            {displayedReports.map(r=>(
-              <div key={r.id||r.text} className="feed-item">
+            {displayedReports.map((r, idx)=>(
+              <div key={r.id || `rep-${idx}`} className="feed-item">
                 <div className="feed-av">{initials(r.user||'?')}</div>
                 <div style={{flex:1}}>
                   <div>
