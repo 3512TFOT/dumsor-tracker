@@ -135,7 +135,7 @@ export default function App() {
 
   // ── Live Firestore reports ──────────────────────────────
   useEffect(()=>{
-    console.log("🔥 Firebase Project:", db.app.options.projectId);
+    console.log("📡 Connecting to Ghana reports...");
     console.log("📡 Connecting to Ghana reports...");
     
     const q = query(
