@@ -140,6 +140,7 @@ export default function App() {
     
     const q = query(
       collection(db, 'reports'),
+      orderBy('timestamp', 'desc'),
       limit(100) 
     );
     
