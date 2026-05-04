@@ -140,7 +140,7 @@ export default function App() {
     
     const q = query(
       collection(db, 'reports'),
-      limit(500) 
+      limit(100) 
     );
     
     const unsub = onSnapshot(q, snap=>{
